@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Explorer — Solar Jumper</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #000; height: 100%; font-family: 'Segoe UI', Arial, sans-serif; }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 16px; left: 16px; color: #cfe8ff; z-index: 5;
+    text-shadow: 0 0 6px rgba(0,0,0,.9); pointer-events: none; line-height: 1.5;
+  }
+  #hud .planet { font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+  #hud .stat { font-size: 13px; opacity: .85; }
+  #fuelWrap { position: fixed; bottom: 24px; left: 24px; width: 180px; z-index: 5; pointer-events: none; }
+  #fuelLabel { color: #9fdcff; font-size: 11px; letter-spacing: 2px; margin-bottom: 4px; text-shadow: 0 0 5px #000; }
+  #fuelOuter { height: 10px; border: 1px solid rgba(150,220,255,.6); border-radius: 6px; background: rgba(0,0,0,.5); }
+  #fuelBar { height: 100%; width: 100%; border-radius: 5px; background: linear-gradient(90deg, #00c2ff, #7df9ff); }
+  #chargeWrap {
+    position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+    width: 280px; height: 14px; border: 2px solid rgba(255,255,255,.5); border-radius: 8px;
+    background: rgba(0,0,0,.5); z-index: 5; display: none;
+  }
+  #chargeBar { height: 100%; width: 0%; border-radius: 5px; background: #4caf50; transition: background .1s; }
+  #hint {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,.75); font-size: 13px; z-index: 5; text-align: center;
+    text-shadow: 0 0 6px #000; pointer-events: none;
+  }
+  #toast {
+    position: fixed; top: 18%; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 30px; font-weight: 700; letter-spacing: 2px;
+    text-shadow: 0 0 18px rgba(120,180,255,.9); z-index: 6; opacity: 0;
+    transition: opacity .4s; pointer-events: none; white-space: nowrap;
+  }
+  #crosshair {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 8px; height: 8px; border: 1px solid rgba(255,255,255,.7); border-radius: 50%;
+    z-index: 5; pointer-events: none;
+  }
+  #overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; background: rgba(0,0,10,.65);
+    color: #fff; cursor: pointer; text-align: center;
+  }
+  #overlay h1 { font-size: 42px; margin: 0 0 10px; letter-spacing: 3px; text-shadow: 0 0 24px #4d90fe; }
+  #overlay p { font-size: 15px; opacity: .85; max-width: 560px; line-height: 1.7; }
+  #overlay .key { display: inline-block; border: 1px solid #888; border-radius: 4px; padding: 1px 7px; background: #222; font-family: monospace; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="planet" id="hudPlanet">Earth</div>
+  <div class="stat" id="hudAlt">Altitude: 0 m</div>
+  <div class="stat" id="hudSpeed">Speed: 0 m/s</div>
+  <div class="stat" id="hudGrav"></div>
+</div>
+<div id="fuelWrap">
+  <div id="fuelLabel">⛽ JETPACK FUEL</div>
+  <div id="fuelOuter"><div id="fuelBar"></div></div>
+</div>
+<div id="chargeWrap"><div id="chargeBar"></div></div>
+<div id="crosshair"></div>
+<div id="hint">WASD move · Mouse look · Hold SPACE: charge jump (ground) / jetpack toward crosshair (air) · R reset</div>
+<div id="toast"></div>
+<div id="overlay">
+  <h1>🌍 WORLD EXPLORER</h1>
+  <p>
+    Walk around planets and jump between them.<br><br>
+    <span class="key">W A S D</span> move &nbsp; <span class="key">Mouse</span> look &nbsp; <span class="key">Shift</span> run<br>
+    <span class="key">SPACE</span> on the ground: hold to charge a jump — release to launch!<br>
+    <span class="key">SPACE</span> in the air: jetpack thrust toward the crosshair.<br>
+    Fuel refills on the ground, and slowly in space after a short pause.<br>
+    Get close to a planet and its gravity will capture you.<br>
+    <span class="key">R</span> respawn on Earth · <span class="key">Esc</span> release mouse<br><br>
+    <b>Click to start</b>
+  </p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- Renderer / Scene / Camera ----------
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 90000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  document.body.appendChild(renderer.domElement);
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  // ---------- Lights ----------
+  scene.add(new THREE.AmbientLight(0x1a2438, 0.7));
+  const sunLight = new THREE.PointLight(0xfff2d0, 2.2, 0, 2);
+  scene.add(sunLight);
+  const headlamp = new THREE.PointLight(0xbfd8ff, 0.7, 70, 2);
+  scene.add(headlamp);
+
+  // ---------- Starfield + nebulae ----------
+  (function makeStars() {
+    function starLayer(count, rMin, rMax, size, band) {
+      const posA = new Float32Array(count * 3);
+      const colA = new Float32Array(count * 3);
+      const tints = [[1,1,1],[0.7,0.8,1],[1,0.92,0.75],[1,0.8,0.8],[0.85,1,1]];
+      for (let i = 0; i < count; i++) {
+        let x, y, z, l;
+        do { x = Math.random()*2-1; y = Math.random()*2-1; z = Math.random()*2-1; l = x*x+y*y+z*z; } while (l > 1 || l < 1e-4);
+        if (band) y *= 0.12;
+        const r = rMin + Math.random() * (rMax - rMin);
+        const s = r / Math.sqrt(x*x+y*y+z*z);
+        posA[i*3] = x*s; posA[i*3+1] = y*s; posA[i*3+2] = z*s;
+        const t = tints[(Math.random()*tints.length)|0];
+        const b = 0.5 + Math.random()*0.5;
+        colA[i*3] = t[0]*b; colA[i*3+1] = t[1]*b; colA[i*3+2] = t[2]*b;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(posA, 3));
+      g.setAttribute('color', new THREE.BufferAttribute(colA, 3));
+      const p = new THREE.Points(g, new THREE.PointsMaterial({ size: size, vertexColors: true, sizeAttenuation: true }));
+      if (band) p.rotation.z = 0.5;
+      scene.add(p);
+    }
+    starLayer(5000, 22000, 34000, 30, false);
+    starLayer(1500, 22000, 34000, 62, false);
+    starLayer(8000, 26000, 34000, 34, true);
+  })();
+
+  function softSprite(color1, color2) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(128, 128, 8, 128, 128, 128);
+    g.addColorStop(0, color1); g.addColorStop(0.5, color2); g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 256, 256);
+    return new THREE.CanvasTexture(c);
+  }
+  (function nebulae() {
+    const cfgs = [
+      ['rgba(110,70,180,0.10)', 'rgba(60,30,120,0.05)', V3n(18000, 6000, -22000), 26000],
+      ['rgba(40,90,180,0.10)',  'rgba(20,50,120,0.05)', V3n(-24000, -4000, 14000), 30000],
+      ['rgba(160,60,110,0.08)', 'rgba(90,30,70,0.04)',  V3n(8000, -14000, 24000), 22000],
+      ['rgba(40,140,140,0.07)', 'rgba(20,80,90,0.04)',  V3n(-14000, 16000, -10000), 24000]
+    ];
+    for (const c of cfgs) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: softSprite(c[0], c[1]), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+      }));
+      s.position.copy(c[2]); s.scale.set(c[3], c[3], 1);
+      scene.add(s);
+    }
+  })();
+  function V3n(x, y, z) { return new THREE.Vector3(x, y, z); }
+
+  // ---------- Procedural textures ----------
+  function canvasTex(draw, w, h) {
+    const c = document.createElement('canvas');
+    c.width = w || 1024; c.height = h || 512;
+    draw(c.getContext('2d'), c.width, c.height);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = THREE.RepeatWrapping;
+    t.encoding = THREE.sRGBEncoding;
+    return t;
+  }
+  function blob(x, cx, cy, size, color, alpha) {
+    x.fillStyle = color;
+    let px = cx, py = cy;
+    for (let i = 0; i < 22; i++) {
+      x.globalAlpha = alpha * (0.5 + Math.random() * 0.5);
+      const r = size * (0.25 + Math.random() * 0.75);
+      x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+      px += (Math.random() - 0.5) * size * 1.6;
+      py += (Math.random() - 0.5) * size * 0.9;
+    }
+    x.globalAlpha = 1;
+  }
+  function rocky(base, spots, n, capColor, blobSize) {
+    return canvasTex((x, w, h) => {
+      x.fillStyle = base; x.fillRect(0, 0, w, h);
+      for (let i = 0; i < n; i++) {
+        blob(x, Math.random() * w, Math.random() * h, blobSize || 26,
+             spots[(Math.random() * spots.length) | 0], 0.35);
+      }
+      for (let i = 0; i < 1200; i++) {
+        x.globalAlpha = 0.05;
+        x.fillStyle = Math.random() > 0.5 ? '#000' : '#fff';
+        x.fillRect(Math.random() * w, Math.random() * h, 3, 3);
+      }
+      if (capColor) {
+        x.globalAlpha = 0.95; x.fillStyle = capColor;
+        x.beginPath(); x.ellipse(w/2, 0, w/1.5, h*0.055, 0, 0, Math.PI*2); x.fill();
+        x.beginPath(); x.ellipse(w/2, h, w/1.5, h*0.055, 0, 0, Math.PI*2); x.fill();
+      }
+      x.globalAlpha = 1;
+    });
+  }
+  function banded(colors, storm) {
+    return canvasTex((x, w, h) => {
+      let y = 0;
+      while (y < h) {
+        const bh = h * (0.03 + Math.random() * 0.09);
+        x.fillStyle = colors[(Math.random() * colors.length) | 0];
+        x.fillRect(0, y, w, bh + 1);
+        x.globalAlpha = 0.3;
+        for (let i = 0; i < 14; i++) {
+          x.beginPath();
+          x.ellipse(Math.random()*w, y + bh*Math.random(), 30+Math.random()*80, 3+Math.random()*5, 0, 0, Math.PI*2);
+          x.fillStyle = colors[(Math.random() * colors.length) | 0];
+          x.fill();
+        }
+        x.globalAlpha = 1;
+        y += bh;
+      }
+      if (storm) {
+        x.fillStyle = storm; x.globalAlpha = 0.9;
+        x.beginPath(); x.ellipse(w*0.68, h*0.62, w*0.055, h*0.045, 0, 0, Math.PI*2); x.fill();
+        x.globalAlpha = 1;
+      }
+    });
+  }
+  function cratered(base, dark, light) {
+    return canvasTex((x, w, h) => {
+      x.fillStyle = base; x.fillRect(0, 0, w, h);
+      for (let i = 0; i < 70; i++) blob(x, Math.random()*w, Math.random()*h, 30, dark, 0.18);
+      for (let i = 0; i < 160; i++) {
+        const cx = Math.random() * w, cy = Math.random() * h, r = 2 + Math.random() * 16;
+        x.globalAlpha = 0.55;
+        x.fillStyle = dark;
+        x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill();
+        x.fillStyle = light;
+        x.beginPath(); x.arc(cx - r * 0.25, cy - r * 0.25, r * 0.55, 0, Math.PI * 2); x.fill();
+      }
+      x.globalAlpha = 1;
+    });
+  }
+  const earthTex = canvasTex((x, w, h) => {
+    const sea = x.createLinearGradient(0, 0, 0, h);
+    sea.addColorStop(0, '#0d3f7a'); sea.addColorStop(0.5, '#10519e'); sea.addColorStop(1, '#0d3f7a');
+    x.fillStyle = sea; x.fillRect(0, 0, w, h);
+    const greens = ['#2e7d32', '#3f8f3f', '#56792f', '#27693f', '#7a6a35'];
+    for (let i = 0; i < 26; i++) {
+      blob(x, Math.random() * w, h*0.15 + Math.random() * h * 0.7, 34,
+           greens[(Math.random() * greens.length) | 0], 0.85);
+    }
+    for (let i = 0; i < 16; i++) {
+      blob(x, Math.random() * w, h*0.35 + Math.random() * h*0.3, 16, '#c2a25a', 0.5);
+    }
+    x.globalAlpha = 0.95; x.fillStyle = '#f4f8ff';
+    x.beginPath(); x.ellipse(w/2, 0, w/1.4, h*0.06, 0, 0, Math.PI*2); x.fill();
+    x.beginPath(); x.ellipse(w/2, h, w/1.4, h*0.07, 0, 0, Math.PI*2); x.fill();
+    x.globalAlpha = 1;
+  });
+  const cloudTex = canvasTex((x, w, h) => {
+    x.clearRect(0, 0, w, h);
+    for (let i = 0; i < 60; i++) blob(x, Math.random() * w, Math.random() * h, 24, '#ffffff', 0.16);
+  });
+  const sunTex = canvasTex((x, w, h) => {
+    const g = x.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#ffdd55'); g.addColorStop(0.5, '#ff9a1f'); g.addColorStop(1, '#ffdd55');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 500; i++) {
+      x.globalAlpha = 0.15;
+      x.fillStyle = Math.random() > 0.5 ? '#ffe98a' : '#e8641b';
+      x.beginPath();
+      x.arc(Math.random() * w, Math.random() * h, 4 + Math.random() * 22, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.globalAlpha = 1;
+  });
+  const ringTex = canvasTex((x, w, h) => {
+    const cols = ['#cbb287', '#a89066', '#e2d0a8', '#8f7a55', '#d8c498'];
+    let px = 0;
+    while (px < w) {
+      const bw = 3 + Math.random() * 18;
+      x.fillStyle = cols[(Math.random() * cols.length) | 0];
+      x.globalAlpha = 0.25 + Math.random() * 0.75;
+      x.fillRect(px, 0, bw + 1, h);
+      px += bw;
+    }
+    x.globalAlpha = 1; x.fillStyle = '#000';
+    x.fillRect(w * 0.55, 0, w * 0.05, h);
+    x.fillRect(w * 0.3, 0, w * 0.015, h);
+  }, 512, 8);
+
+  // ---------- Fresnel atmosphere shader ----------
+  const atmoVert = 'varying vec3 vNormal; varying vec3 vPosW;' +
+    'void main(){ vNormal = normalize(mat3(modelMatrix) * normal);' +
+    'vPosW = (modelMatrix * vec4(position,1.0)).xyz;' +
+    'gl_Position = projectionMatrix * viewMatrix * vec4(vPosW,1.0); }';
+  const atmoFrag = 'uniform vec3 glowColor; varying vec3 vNormal; varying vec3 vPosW;' +
+    'void main(){ vec3 viewDir = normalize(cameraPosition - vPosW);' +
+    'float rim = pow(1.0 - abs(dot(normalize(vNormal), viewDir)), 2.6);' +
+    'gl_FragColor = vec4(glowColor, rim * 0.85); }';
+  function atmoMaterial(colorHex) {
+    return new THREE.ShaderMaterial({
+      uniforms: { glowColor: { value: new THREE.Color(colorHex) } },
+      vertexShader: atmoVert, fragmentShader: atmoFrag,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide
+    });
+  }
+
+  // ---------- Solar system layout ----------
+  function orbitPos(R, angleDeg, incDeg) {
+    const a = angleDeg * Math.PI / 180, inc = incDeg * Math.PI / 180;
+    return new THREE.Vector3(R * Math.cos(a), R * Math.sin(a) * Math.sin(inc), R * Math.sin(a) * Math.cos(inc));
+  }
+  function addOrbitLine(R, incDeg) {
+    const inc = incDeg * Math.PI / 180, pts = [];
+    for (let i = 0; i <= 128; i++) {
+      const a = i / 128 * Math.PI * 2;
+      pts.push(new THREE.Vector3(R * Math.cos(a), R * Math.sin(a) * Math.sin(inc), R * Math.sin(a) * Math.cos(inc)));
+    }
+    const g = new THREE.BufferGeometry().setFromPoints(pts);
+    scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x3a4a66, transparent: true, opacity: 0.32 })));
+  }
+
+  const planets = [];
+  function addPlanet(o) {
+    const geo = new THREE.SphereGeometry(o.r, 56, 40);
+    let mat;
+    if (o.emissive) {
+      mat = new THREE.MeshBasicMaterial({ map: o.tex });
+    } else {
+      mat = new THREE.MeshPhongMaterial({
+        map: o.tex,
+        bumpMap: o.bump === false ? null : o.tex,
+        bumpScale: o.bumpScale != null ? o.bumpScale : 0.45,
+        specular: o.specular != null ? o.specular : 0x111111,
+        shininess: o.shininess != null ? o.shininess : 5
+      });
+    }
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(o.center);
+    if (o.tilt) mesh.rotation.z = o.tilt;
+    scene.add(mesh);
+    o.mesh = mesh;
+    o.soi = o.soiMult ? o.r * o.soiMult : o.r * 7;  // sphere of influence
+
+    if (o.atmosphere) {
+      const atm = new THREE.Mesh(new THREE.SphereGeometry(o.r * 1.045, 40, 28), atmoMaterial(o.atmosphere));
+      atm.position.copy(o.center);
+      scene.add(atm);
+    }
+    if (o.clouds) {
+      const cl = new THREE.Mesh(
+        new THREE.SphereGeometry(o.r * 1.02, 40, 28),
+        new THREE.MeshLambertMaterial({ map: o.clouds, transparent: true, depthWrite: false })
+      );
+      cl.position.copy(o.center);
+      scene.add(cl);
+      o.cloudMesh = cl;
+    }
+    if (o.ring) {
+      const rg = new THREE.RingGeometry(o.r * 1.4, o.r * 2.2, 96, 1);
+      const posAttr = rg.attributes.position, uvAttr = rg.attributes.uv;
+      const inner = o.r * 1.4, outer = o.r * 2.2;
+      for (let i = 0; i < posAttr.count; i++) {
+        const vx = posAttr.getX(i), vy = posAttr.getY(i);
+        const rr = Math.sqrt(vx * vx + vy * vy);
+        uvAttr.setXY(i, (rr - inner) / (outer - inner), 0.5);
+      }
+      const ring = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({
+        map: ringTex, transparent: true, opacity: 0.9, side: THREE.DoubleSide
+      }));
+      ring.position.copy(o.center);
+      ring.rotation.x = Math.PI / 2 - 0.35;
+      scene.add(ring);
+    }
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: canvasTex((x, w, h) => {
+        x.font = 'bold 64px Segoe UI, Arial';
+        x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.shadowColor = '#000'; x.shadowBlur = 14;
+        x.fillStyle = '#dceaff';
+        x.fillText(o.name.toUpperCase(), w / 2, h / 2);
+      }, 512, 128),
+      transparent: true, depthWrite: false
+    }));
+    label.scale.set(o.r * 2.2, o.r * 0.55, 1);
+    label.position.copy(o.center).add(new THREE.Vector3(0, o.r * 1.7, 0));
+    scene.add(label);
+
+    planets.push(o);
+    return o;
+  }
+
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+
+  const sun = addPlanet({ name: 'Sun', r: 220, g: 35, center: V3(0, 0, 0), tex: sunTex, emissive: true, deadly: true, soiMult: 1000 });
+  addOrbitLine(600, 3);   addPlanet({ name: 'Mercury', r: 17, g: 14, center: orbitPos(600, 25, 3),    tex: cratered('#8d7f72', '#5f554b', '#b0a293'), bumpScale: 0.6 });
+  addOrbitLine(950, 2.2); addPlanet({ name: 'Venus',   r: 42, g: 26, center: orbitPos(950, 135, 2.2), tex: rocky('#caa05a', ['#e0bc7a', '#a9803e', '#d8c08e'], 40, null, 30), atmosphere: 0xe8c87a, tilt: 0.05, bumpScale: 0.25 });
+  const earth = addPlanet({ name: 'Earth', r: 60, g: 32, center: orbitPos(1400, 0, 0), tex: earthTex, atmosphere: 0x6db3ff, clouds: cloudTex, tilt: 0.41, specular: 0x335577, shininess: 16, bumpScale: 0.3 });
+  addOrbitLine(1400, 0);
+  addPlanet({ name: 'Moon', r: 16, g: 9, center: earth.center.clone().add(V3(160, 90, 180)), tex: cratered('#9a9a9a', '#6e6e6e', '#c2c2c2'), bumpScale: 0.7, soiMult: 5 });
+  addOrbitLine(1900, 1.8); addPlanet({ name: 'Mars',    r: 36, g: 22, center: orbitPos(1900, 305, 1.8), tex: rocky('#b34a26', ['#8c2f12', '#d2693f', '#7a3a20'], 46, '#e8d9c8', 28), tilt: 0.44, bumpScale: 0.5 });
+  addOrbitLine(2800, 1.3); addPlanet({ name: 'Jupiter', r: 125, g: 40, center: orbitPos(2800, 55, 1.3), tex: banded(['#c9a06c', '#a9764a', '#e3c8a0', '#8a5a36', '#d8b288'], '#b5502e'), tilt: 0.05, bump: false });
+  addOrbitLine(3700, 2.5); addPlanet({ name: 'Saturn',  r: 105, g: 34, center: orbitPos(3700, 160, 2.5), tex: banded(['#e0c690', '#c8a86a', '#efe0b8', '#b6925a'], null), ring: true, tilt: 0.47, bump: false });
+  addOrbitLine(4600, 0.8); addPlanet({ name: 'Uranus',  r: 68, g: 28, center: orbitPos(4600, 240, 0.8), tex: rocky('#7fd4e0', ['#9ae2ea', '#68bcd0'], 24, null, 36), atmosphere: 0x9ae2ea, tilt: 1.7, bump: false });
+  addOrbitLine(5400, 1.8); addPlanet({ name: 'Neptune', r: 66, g: 28, center: orbitPos(5400, 95, 1.8),  tex: rocky('#2f5bd4', ['#4a78ea', '#244aa8', '#6f93f0'], 32, null, 34), atmosphere: 0x4a78ea, tilt: 0.49, bump: false });
+
+  // Sun glow + corona
+  function glowSprite(size, inner, mid) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: softSprite(inner, mid),
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    s.scale.set(size, size, 1);
+    s.position.copy(sun.center);
+    scene.add(s);
+    return s;
+  }
+  glowSprite(1500, 'rgba(255,230,150,1)', 'rgba(255,170,60,0.4)');
+  const corona = glowSprite(820, 'rgba(255,250,220,1)', 'rgba(255,200,90,0.55)');
+  sunLight.position.copy(sun.center);
+
+  // ---------- Astronaut + jetpack ----------
+  const player = new THREE.Group();
+  let flame;
+  (function buildAstronaut() {
+    const white = new THREE.MeshPhongMaterial({ color: 0xe8e8ee, shininess: 30, specular: 0x555555 });
+    const grey  = new THREE.MeshPhongMaterial({ color: 0xb8bcc4, shininess: 60, specular: 0x888888 });
+    const dark  = new THREE.MeshPhongMaterial({ color: 0x333a45, shininess: 20 });
+    const visor = new THREE.MeshPhongMaterial({ color: 0x224a7a, emissive: 0x10253f, shininess: 90, specular: 0xaaccff });
+    const orange = new THREE.MeshPhongMaterial({ color: 0xd96820, shininess: 40 });
+
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 0.95, 2.2, 12), white);
+    torso.position.y = 1.6; player.add(torso);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.95, 16, 12), white);
+    helmet.position.y = 3.4; player.add(helmet);
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 12, -Math.PI/3, Math.PI*2/3, Math.PI/3, Math.PI/3), visor);
+    face.position.set(0, 3.4, -0.35); face.scale.set(1, 0.85, 1.15); player.add(face);
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.9, 0.8), dark);
+    pack.position.set(0, 1.95, 1.0); player.add(pack);
+    const tankL = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 1.7, 10), grey);
+    tankL.position.set(-0.5, 1.95, 1.45); player.add(tankL);
+    const tankR = tankL.clone(); tankR.position.x = 0.5; player.add(tankR);
+    const capL = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), orange);
+    capL.position.set(-0.5, 2.85, 1.45); player.add(capL);
+    const capR = capL.clone(); capR.position.x = 0.5; player.add(capR);
+    const nozzleL = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, 0.35, 8), dark);
+    nozzleL.position.set(-0.5, 1.0, 1.45); player.add(nozzleL);
+    const nozzleR = nozzleL.clone(); nozzleR.position.x = 0.5; player.add(nozzleR);
+    flame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.3, 1.6, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff9a2e, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending })
+    );
+    flame.rotation.x = Math.PI;
+    flame.position.set(0, 0.1, 1.45);
+    flame.visible = false;
+    player.add(flame);
+
+    const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 1.4, 8), white);
+    legL.position.set(-0.45, 0.0, 0); player.add(legL);
+    const legR = legL.clone(); legR.position.x = 0.45; player.add(legR);
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 1.7, 8), white);
+    armL.position.set(-1.35, 1.8, 0); armL.rotation.z = 0.25; player.add(armL);
+    const armR = armL.clone(); armR.position.x = 1.35; armR.rotation.z = -0.25; player.add(armR);
+  })();
+  scene.add(player);
+
+  const PLAYER_FEET = 0.7;
+  const WALK_SPEED = 26;
+  const RUN_MULT = 1.8;
+  const JUMP_MIN = 18;
+  const JUMP_MAX = 120;
+  const CHARGE_TIME = 1.6;
+  const AIR_CONTROL = 12;
+  const JET_ACCEL = 60;
+  const FUEL_MAX = 100;
+  const FUEL_BURN = 20;
+  const FUEL_REFILL_GROUND = 60;
+  const FUEL_REFILL_AIR = 26;
+  const FUEL_REGEN_DELAY = 2.5;   // seconds after last thrust
+  const MAX_SPEED = 350;
+  const LAND_ASSIST = 5;          // capture distance above the surface
+
+  // ---------- State ----------
+  const pos = new THREE.Vector3();
+  const vel = new THREE.Vector3();
+  const prevPos = new THREE.Vector3();
+  let grounded = true;
+  let groundPlanet = earth;
+  const up = V3(0, 1, 0);
+  const smoothUp = V3(0, 1, 0);
+  const fwdRef = V3(0, 0, -1);
+  let yaw = 0, pitch = 0.3;
+  let charge = 0, charging = false;
+  let fuel = FUEL_MAX;
+  let lastThrustTime = -99;
+  let camDist = 20;
+  const camDir = V3(0, 0, -1);
+  const lastFacing = V3(0, 0, -1);
+  const visited = new Set(['Earth']);
+
+  function spawnOn(p) {
+    groundPlanet = p;
+    const n = V3(0.35, 1, 0.25).normalize();
+    pos.copy(p.center).addScaledVector(n, p.r + PLAYER_FEET);
+    prevPos.copy(pos);
+    vel.set(0, 0, 0);
+    grounded = true;
+    up.copy(n); smoothUp.copy(n);
+    fwdRef.set(0, 0, -1).addScaledVector(n, -n.dot(fwdRef)).normalize();
+    yaw = 0; pitch = 0.3; charge = 0; charging = false;
+    fuel = FUEL_MAX;
+  }
+
+  // ---------- Input ----------
+  const keys = {};
+  addEventListener('keydown', e => {
+    if (e.code === 'Space' && !e.repeat && grounded) { charging = true; charge = 0; }
+    if (e.code === 'KeyR') spawnOn(earth);
+    keys[e.code] = true;
+    if (e.code === 'Space') e.preventDefault();
+  });
+  addEventListener('keyup', e => {
+    keys[e.code] = false;
+    if (e.code === 'Space' && charging) {
+      if (grounded) doJump();
+      charging = false; charge = 0;
+    }
+  });
+  addEventListener('wheel', e => {
+    camDist = Math.max(10, Math.min(70, camDist + e.deltaY * 0.02));
+  });
+
+  const overlay = document.getElementById('overlay');
+  overlay.addEventListener('click', () => renderer.domElement.requestPointerLock());
+  document.addEventListener('pointerlockchange', () => {
+    overlay.style.display = document.pointerLockElement ? 'none' : 'flex';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!document.pointerLockElement) return;
+    yaw += e.movementX * 0.0024;
+    pitch = Math.max(-1.35, Math.min(1.35, pitch + e.movementY * 0.0024));
+  });
+
+  // ---------- Helpers ----------
+  const tmpQ = new THREE.Quaternion();
+  const tmpV = new THREE.Vector3();
+  const tmpV2 = new THREE.Vector3();
+  const tmpV3 = new THREE.Vector3();
+
+  function moveInput(h, right, out) {
+    out.set(0, 0, 0);
+    if (keys.KeyW) out.add(h);
+    if (keys.KeyS) out.sub(h);
+    if (keys.KeyD) out.add(right);
+    if (keys.KeyA) out.sub(right);
+    if (out.lengthSq() > 0) out.normalize();
+    return out;
+  }
+
+  function horizDir() {
+    tmpQ.setFromAxisAngle(smoothUp, -yaw);
+    return tmpV.copy(fwdRef).applyQuaternion(tmpQ).normalize();
+  }
+
+  function doJump() {
+    const power = JUMP_MIN + (JUMP_MAX - JUMP_MIN) * charge;
+    const h = horizDir().clone();
+    const right = tmpV2.crossVectors(h, smoothUp).normalize();
+    const mv = moveInput(h, right, new THREE.Vector3());
+    vel.copy(up).multiplyScalar(power).addScaledVector(mv, WALK_SPEED * 0.9);
+    grounded = false;
+    if (charge > 0.95) toast('🚀 MAX POWER!');
+  }
+
+  // did the segment a->b pass through the sphere (c, R)?
+  function segHitsSphere(a, b, c, R) {
+    const ab = tmpV3.copy(b).sub(a);
+    const len2 = ab.lengthSq();
+    if (len2 < 1e-9) return false;
+    let t = tmpV.copy(c).sub(a).dot(ab) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const closest = tmpV.copy(a).addScaledVector(ab, t);
+    return closest.distanceTo(c) < R;
+  }
+
+  let toastTimer = null;
+  function toast(text) {
+    const el = document.getElementById('toast');
+    el.textContent = text;
+    el.style.opacity = 1;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.style.opacity = 0; }, 2200);
+  }
+
+  function landOn(p) {
+    if (p.deadly) {
+      toast('☀️ TOO HOT! Respawning…');
+      spawnOn(earth);
+      return;
+    }
+    groundPlanet = p;
+    grounded = true;
+    vel.set(0, 0, 0);
+    const n = tmpV.copy(pos).sub(p.center).normalize();
+    pos.copy(p.center).addScaledVector(n, p.r + PLAYER_FEET);
+    up.copy(n);
+    if (!visited.has(p.name)) {
+      visited.add(p.name);
+      toast('🪐 Welcome to ' + p.name + '!');
+    }
+  }
+
+  // ---------- HUD ----------
+  const hudPlanet = document.getElementById('hudPlanet');
+  const hudAlt = document.getElementById('hudAlt');
+  const hudSpeed = document.getElementById('hudSpeed');
+  const hudGrav = document.getElementById('hudGrav');
+  const chargeWrap = document.getElementById('chargeWrap');
+  const chargeBar = document.getElementById('chargeBar');
+  const fuelBar = document.getElementById('fuelBar');
+
+  spawnOn(earth);
+
+  // ---------- Main loop ----------
+  const clock = new THREE.Clock();
+  let elapsed = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    elapsed += dt;
+
+    corona.scale.setScalar(820 + Math.sin(elapsed * 1.3) * 40);
+    sun.mesh.rotation.y += 0.004 * dt;
+    if (earth.cloudMesh) earth.cloudMesh.rotation.y += 0.01 * dt;
+
+    // --- Sphere-of-influence gravity (patched conics, like real orbital mechanics) ---
+    // Inside a planet's SOI only that planet pulls you; otherwise the Sun does.
+    let domBody = sun, domFrac = Infinity;
+    for (const p of planets) {
+      if (p === sun) continue;
+      const frac = pos.distanceTo(p.center) / p.soi;
+      if (frac < 1 && frac < domFrac) { domFrac = frac; domBody = p; }
+    }
+    const dDom = Math.max(pos.distanceTo(domBody.center), domBody.r * 0.6);
+    const gDom = domBody.g * (domBody.r / dDom) * (domBody.r / dDom);
+    const accel = tmpV2.copy(domBody.center).sub(pos).normalize().multiplyScalar(gDom);
+
+    if (grounded) {
+      up.copy(pos).sub(groundPlanet.center).normalize();
+    } else {
+      up.copy(pos).sub(domBody.center).normalize();
+    }
+    const prevUp = new THREE.Vector3().copy(smoothUp);
+    smoothUp.lerp(up, 1 - Math.pow(0.002, dt)).normalize();
+    tmpQ.setFromUnitVectors(prevUp, smoothUp);
+    fwdRef.applyQuaternion(tmpQ);
+    fwdRef.addScaledVector(smoothUp, -fwdRef.dot(smoothUp));
+    if (fwdRef.lengthSq() < 1e-6) fwdRef.set(smoothUp.y, smoothUp.z, -smoothUp.x);
+    fwdRef.normalize();
+
+    const h = horizDir().clone();
+    const right = new THREE.Vector3().crossVectors(h, smoothUp).normalize();
+    const mv = moveInput(h, right, new THREE.Vector3());
+
+    if (charging && grounded) charge = Math.min(1, charge + dt / CHARGE_TIME);
+
+    let thrusting = false;
+
+    if (grounded) {
+      fuel = Math.min(FUEL_MAX, fuel + FUEL_REFILL_GROUND * dt);
+      const speed = WALK_SPEED * (keys.ShiftLeft || keys.ShiftRight ? RUN_MULT : 1) * (charging ? 0.35 : 1);
+      pos.addScaledVector(mv, speed * dt);
+      const n = new THREE.Vector3().copy(pos).sub(groundPlanet.center).normalize();
+      pos.copy(groundPlanet.center).addScaledVector(n, groundPlanet.r + PLAYER_FEET);
+      up.copy(n);
+      prevPos.copy(pos);
+      if (mv.lengthSq() > 0) lastFacing.copy(mv);
+    } else {
+      vel.addScaledVector(accel, dt);
+      vel.addScaledVector(mv, AIR_CONTROL * dt);
+      // Jetpack: thrust exactly where the camera points (the crosshair)
+      if (keys.Space && !charging && fuel > 0) {
+        vel.addScaledVector(camDir, JET_ACCEL * dt);
+        fuel = Math.max(0, fuel - FUEL_BURN * dt);
+        lastThrustTime = elapsed;
+        thrusting = true;
+      } else if (elapsed - lastThrustTime > FUEL_REGEN_DELAY) {
+        fuel = Math.min(FUEL_MAX, fuel + FUEL_REFILL_AIR * dt);
+      }
+      if (vel.length() > MAX_SPEED) vel.setLength(MAX_SPEED);
+
+      prevPos.copy(pos);
+      pos.addScaledVector(vel, dt);
+      if (mv.lengthSq() > 0) lastFacing.copy(mv);
+
+      // --- Landing: surface contact, close-approach capture, or tunnel crossing ---
+      for (const p of planets) {
+        const surf = p.r + PLAYER_FEET;
+        const n = tmpV.copy(pos).sub(p.center);
+        const d = n.length();
+        const vr = vel.dot(n.normalize()); // radial speed (negative = approaching)
+        if (d < surf ||
+            (d < surf + LAND_ASSIST && vr < 0) ||
+            segHitsSphere(prevPos, pos, p.center, surf)) {
+          landOn(p);
+          break;
+        }
+      }
+      if (pos.length() > 16000) { toast('🛸 Lost in space… respawning'); spawnOn(earth); }
+    }
+
+    flame.visible = thrusting;
+    if (thrusting) flame.scale.set(1, 0.8 + Math.random() * 0.6, 1);
+
+    // ---- Player orientation ----
+    lastFacing.addScaledVector(smoothUp, -lastFacing.dot(smoothUp));
+    if (lastFacing.lengthSq() < 1e-6) lastFacing.copy(h);
+    lastFacing.normalize();
+    const q1 = new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), smoothUp);
+    const f0 = V3(0, 0, -1).applyQuaternion(q1);
+    f0.addScaledVector(smoothUp, -f0.dot(smoothUp)).normalize();
+    const crossV = new THREE.Vector3().crossVectors(f0, lastFacing);
+    const ang = Math.atan2(crossV.dot(smoothUp), f0.dot(lastFacing));
+    const qYaw = new THREE.Quaternion().setFromAxisAngle(smoothUp, ang);
+    player.quaternion.copy(qYaw.multiply(q1));
+    player.position.copy(pos);
+    player.scale.y = 1 - 0.35 * charge;
+
+    headlamp.position.copy(pos).addScaledVector(smoothUp, 6);
+
+    // ---- Camera ----
+    const lookTarget = new THREE.Vector3().copy(pos).addScaledVector(smoothUp, 4);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    camera.position.copy(lookTarget)
+      .addScaledVector(h, -camDist * cp)
+      .addScaledVector(smoothUp, camDist * sp);
+    for (const p of planets) {
+      const d = camera.position.distanceTo(p.center);
+      if (d < p.r + 2) {
+        camera.position.sub(p.center).normalize().multiplyScalar(p.r + 2).add(p.center);
+      }
+    }
+    camera.up.copy(smoothUp);
+    camera.lookAt(lookTarget);
+    camera.getWorldDirection(camDir); // exact crosshair direction, used by the jetpack
+
+    // ---- HUD ----
+    const altP = grounded ? groundPlanet : domBody;
+    const alt = Math.max(0, pos.distanceTo(altP.center) - altP.r - PLAYER_FEET);
+    hudPlanet.textContent = (grounded ? '' : '→ ') + altP.name;
+    hudAlt.textContent = 'Altitude: ' + alt.toFixed(0) + ' m';
+    hudSpeed.textContent = 'Speed: ' + (grounded ? 0 : vel.length().toFixed(0)) + ' m/s';
+    hudGrav.textContent = grounded ? '' : 'Gravity field: ' + domBody.name;
+    fuelBar.style.width = fuel.toFixed(1) + '%';
+    if (charging) {
+      chargeWrap.style.display = 'block';
+      chargeBar.style.width = (charge * 100).toFixed(1) + '%';
+      chargeBar.style.background = charge < 0.4 ? '#4caf50' : charge < 0.8 ? '#ffb300' : '#ff3d00';
+    } else {
+      chargeWrap.style.display = 'none';
+    }
+
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>
+</body>
+</html>
