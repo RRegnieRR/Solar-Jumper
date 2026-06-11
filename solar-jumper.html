@@ -589,7 +589,7 @@
     tex: banded(['#e8b870', '#c89048', '#f8d8a0', '#a87030', '#ffc880'], null), tilt: 0.1, bump: false });
 
   // ===== SAGITTARIUS A* — the supermassive black hole at the galaxy's heart (26,000 ly) =====
-  const blackhole = addPlanet({ name: 'Sagittarius A*', r: 1.9e18, g: 1000,
+  const blackhole = addPlanet({ name: 'Sagittarius A*', r: 3.8e17, g: 1000,
     center: V3(0.45, -0.2, 0.87).normalize().multiplyScalar(26000 * LYS),
     tex: canvasTex((x, w, h) => { x.fillStyle = '#000'; x.fillRect(0, 0, w, h); }, 64, 32),
     emissive: true });
@@ -1516,7 +1516,7 @@
       const gMult = 1 + 2.2 * Math.max(0, 1 - distSurf / 250);
       vel.addScaledVector(accel, gMult * dt);
       const effAccel = Math.max(100, distSurf * 1.0);
-      const effCap = nearestP.blackhole ? 1e15 : Math.max(13000, distSurf * 0.8);
+      const effCap = nearestP.blackhole ? Math.max(1e15, distSurf * 2) : Math.max(13000, distSurf * 0.8);
       const airCtl = Math.max(12, distSurf * 0.2);
       vel.addScaledVector(mv, airCtl * dt);
       if (keys.Space && !charging && fuel > 0) {
