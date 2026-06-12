@@ -1277,7 +1277,7 @@
     if (best) {
       target = best;
       banner.style.display = 'block';
-      toast('🎯 Locked: ' + best.name);
+      toast(' Locked: ' + best.name);
     } else {
       toast('No planet in the crosshair');
     }
@@ -1785,7 +1785,7 @@
     hudGrav.textContent = grounded ? '' : 'Gravity field: ' + domBody.name;
     fuelBar.style.width = fuel.toFixed(1) + '%';
     if (target) {
-      targetBanner.textContent = '🎯 ' + target.name.toUpperCase() + ' — ' +
+      targetBanner.textContent = target.name.toUpperCase() + ' — ' +
         fmtDist(Math.max(0, pos.distanceTo(target.center) - target.r));
     }
     if (charging) {
