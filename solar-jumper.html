@@ -78,7 +78,7 @@
 </div>
 <div id="targetBanner"></div>
 <div id="fuelWrap">
-  <div id="fuelLabel">⛽ JETPACK FUEL</div>
+  <div id="fuelLabel">JETPACK FUEL</div>
   <div id="fuelOuter"><div id="fuelBar"></div></div>
 </div>
 <div id="chargeWrap"><div id="chargeBar"></div></div>
@@ -88,16 +88,17 @@
 <div id="overlay">
   <h1>WORLD EXPLORER</h1>
   <div id="menuButtons">
-    <button class="menuBtn" id="btnResume">▶ &nbsp;PLAY</button>
-    <button class="menuBtn" data-panel="panelAch">🏆 &nbsp;ACHIEVEMENTS</button>
-    <button class="menuBtn" data-panel="panelSet">⚙ &nbsp;SETTINGS</button>
-    <button class="menuBtn" data-panel="panelInfo">ℹ &nbsp;INFO</button>
+    <button class="menuBtn" id="btnResume">PLAY</button>
+    <button class="menuBtn" data-panel="panelAch">ACHIEVEMENTS</button>
+    <button class="menuBtn" data-panel="panelSet">SETTINGS</button>
+    <button class="menuBtn" data-panel="panelInfo">INFO</button>
   </div>
-  <div class="panel" id="panelAch"><h2>🏆 Worlds Visited</h2><div id="achList"></div></div>
+  <div class="panel" id="panelAch"><h2>Worlds Visited</h2><div id="achList"></div></div>
   <div class="panel" id="panelSet">
-    <h2>⚙ Settings</h2>
+    <h2>Settings</h2>
     <div class="setRow">Mouse sensitivity: <input type="range" id="setSens" min="5" max="60" value="24"></div>
     <div class="setRow"><label><input type="checkbox" id="setInvert"> Invert Y axis</label></div>
+    <div class="setRow"><label><input type="checkbox" id="setMusic" checked> Music</label></div>
     <div class="setRow">Graphics quality:
       <select id="setQuality">
         <option value="0.75">Low</option>
@@ -107,7 +108,7 @@
     </div>
   </div>
   <div class="panel" id="panelInfo">
-    <h2>ℹ Info & Controls</h2>
+    <h2>Info & Controls</h2>
     <span class="key">W A S D</span> move · <span class="key">Shift</span> run · <span class="key">Mouse</span> look<br>
     <span class="key">SPACE</span> on ground: hold to charge a jump toward your crosshair, release to launch<br>
     <span class="key">SPACE</span> in the air: jetpack thrust toward the crosshair<br>
@@ -123,7 +124,7 @@
     waits. Cross its event horizon and you will not die… you will arrive
     somewhere where light and darkness have traded places.
   </div>
-  <button class="menuBtn" id="btnBack" style="display:none">← &nbsp;BACK</button>
+  <button class="menuBtn" id="btnBack" style="display:none">BACK</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -225,39 +226,90 @@
     }
     x.globalAlpha = 1;
   }
+  function detailPass(x, w, h, strength) {
+    const s0 = strength || 1;
+    for (let i = 0; i < 2400 * s0; i++) {
+      x.globalAlpha = 0.04;
+      x.fillStyle = Math.random() > 0.5 ? '#000' : '#fff';
+      const s = 1 + Math.random() * 3;
+      x.fillRect(Math.random() * w, Math.random() * h, s, s);
+    }
+    for (let i = 0; i < 9; i++) {
+      x.globalAlpha = 0.055;
+      x.fillStyle = Math.random() > 0.5 ? '#000' : '#fff';
+      x.beginPath();
+      x.ellipse(Math.random() * w, Math.random() * h, w * (0.06 + Math.random() * 0.18), h * (0.08 + Math.random() * 0.2), Math.random() * 3, 0, Math.PI * 2);
+      x.fill();
+    }
+    const gT = x.createLinearGradient(0, 0, 0, h * 0.1);
+    gT.addColorStop(0, 'rgba(0,0,0,0.22)'); gT.addColorStop(1, 'rgba(0,0,0,0)');
+    x.globalAlpha = 1; x.fillStyle = gT; x.fillRect(0, 0, w, h * 0.1);
+    const gB = x.createLinearGradient(0, h * 0.9, 0, h);
+    gB.addColorStop(0, 'rgba(0,0,0,0)'); gB.addColorStop(1, 'rgba(0,0,0,0.22)');
+    x.fillStyle = gB; x.fillRect(0, h * 0.9, w, h * 0.1);
+    x.globalAlpha = 1;
+  }
+  function craterAt(x, cx, cy, r, dark, light, rays) {
+    x.globalAlpha = 0.5; x.fillStyle = dark;
+    x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill();
+    x.globalAlpha = 0.55; x.fillStyle = light;
+    x.beginPath(); x.arc(cx - r * 0.22, cy - r * 0.22, r * 0.55, 0, Math.PI * 2); x.fill();
+    x.globalAlpha = 0.35; x.strokeStyle = light; x.lineWidth = Math.max(1, r * 0.12);
+    x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke();
+    if (rays) {
+      x.globalAlpha = 0.12; x.strokeStyle = light; x.lineWidth = 1.5;
+      for (let i = 0; i < 8; i++) {
+        const a = Math.random() * Math.PI * 2, L = r * (2 + Math.random() * 4);
+        x.beginPath(); x.moveTo(cx, cy);
+        x.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L);
+        x.stroke();
+      }
+    }
+    x.globalAlpha = 1;
+  }
   function rocky(base, spots, n, capColor, blobSize) {
     return canvasTex((x, w, h) => {
       x.fillStyle = base; x.fillRect(0, 0, w, h);
-      for (let i = 0; i < n; i++) {
-        blob(x, Math.random() * w, Math.random() * h, blobSize || 26,
-             spots[(Math.random() * spots.length) | 0], 0.35);
+      const bs = blobSize || 26;
+      for (let i = 0; i < n; i++) blob(x, Math.random() * w, Math.random() * h, bs * 2.2, spots[(Math.random() * spots.length) | 0], 0.22);
+      for (let i = 0; i < n * 1.6; i++) blob(x, Math.random() * w, Math.random() * h, bs, spots[(Math.random() * spots.length) | 0], 0.3);
+      for (let i = 0; i < n * 2.5; i++) blob(x, Math.random() * w, Math.random() * h, bs * 0.4, spots[(Math.random() * spots.length) | 0], 0.35);
+      x.globalAlpha = 0.16; x.strokeStyle = '#000'; x.lineWidth = 1.6;
+      for (let i = 0; i < 26; i++) {
+        let px = Math.random() * w, py = Math.random() * h;
+        x.beginPath(); x.moveTo(px, py);
+        for (let s = 0; s < 14; s++) { px += (Math.random() - 0.5) * 70; py += (Math.random() - 0.5) * 26; x.lineTo(px, py); }
+        x.stroke();
       }
-      for (let i = 0; i < 1200; i++) {
-        x.globalAlpha = 0.05;
-        x.fillStyle = Math.random() > 0.5 ? '#000' : '#fff';
-        x.fillRect(Math.random() * w, Math.random() * h, 3, 3);
-      }
+      x.globalAlpha = 1;
+      for (let i = 0; i < 26; i++) craterAt(x, Math.random() * w, Math.random() * h, 3 + Math.random() * 12, 'rgba(0,0,0,0.7)', 'rgba(255,255,255,0.55)', false);
       if (capColor) {
         x.globalAlpha = 0.95; x.fillStyle = capColor;
         x.beginPath(); x.ellipse(w/2, 0, w/1.5, h*0.055, 0, 0, Math.PI*2); x.fill();
         x.beginPath(); x.ellipse(w/2, h, w/1.5, h*0.055, 0, 0, Math.PI*2); x.fill();
       }
-      x.globalAlpha = 1;
+      detailPass(x, w, h, 1);
     });
   }
   function banded(colors, storm) {
     return canvasTex((x, w, h) => {
       let y = 0;
       while (y < h) {
-        const bh = h * (0.03 + Math.random() * 0.09);
+        const bh = h * (0.018 + Math.random() * 0.055);
         x.fillStyle = colors[(Math.random() * colors.length) | 0];
         x.fillRect(0, y, w, bh + 1);
-        x.globalAlpha = 0.3;
-        for (let i = 0; i < 14; i++) {
+        x.globalAlpha = 0.35;
+        for (let i = 0; i < 22; i++) {
           x.beginPath();
-          x.ellipse(Math.random()*w, y + bh*Math.random(), 30+Math.random()*80, 3+Math.random()*5, 0, 0, Math.PI*2);
+          x.ellipse(Math.random()*w, y + bh*Math.random(), 30+Math.random()*90, 2.5+Math.random()*5, 0, 0, Math.PI*2);
           x.fillStyle = colors[(Math.random() * colors.length) | 0];
           x.fill();
+        }
+        x.globalAlpha = 0.2; x.strokeStyle = colors[(Math.random() * colors.length) | 0]; x.lineWidth = 2;
+        for (let i = 0; i < 6; i++) {
+          x.beginPath();
+          x.arc(Math.random() * w, y + bh, 4 + Math.random() * 9, 0, Math.PI * (1 + Math.random()));
+          x.stroke();
         }
         x.globalAlpha = 1;
         y += bh;
@@ -265,23 +317,22 @@
       if (storm) {
         x.fillStyle = storm; x.globalAlpha = 0.9;
         x.beginPath(); x.ellipse(w*0.68, h*0.62, w*0.055, h*0.045, 0, 0, Math.PI*2); x.fill();
+        x.globalAlpha = 0.5; x.strokeStyle = storm; x.lineWidth = 3;
+        x.beginPath(); x.ellipse(w*0.68, h*0.62, w*0.075, h*0.06, 0, 0, Math.PI*2); x.stroke();
         x.globalAlpha = 1;
       }
+      detailPass(x, w, h, 0.5);
     });
   }
   function cratered(base, dark, light) {
     return canvasTex((x, w, h) => {
       x.fillStyle = base; x.fillRect(0, 0, w, h);
-      for (let i = 0; i < 70; i++) blob(x, Math.random()*w, Math.random()*h, 30, dark, 0.18);
-      for (let i = 0; i < 160; i++) {
-        const cx = Math.random() * w, cy = Math.random() * h, r = 2 + Math.random() * 16;
-        x.globalAlpha = 0.55;
-        x.fillStyle = dark;
-        x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill();
-        x.fillStyle = light;
-        x.beginPath(); x.arc(cx - r * 0.25, cy - r * 0.25, r * 0.55, 0, Math.PI * 2); x.fill();
+      for (let i = 0; i < 60; i++) blob(x, Math.random()*w, Math.random()*h, 44, dark, 0.14);
+      for (let i = 0; i < 80; i++) blob(x, Math.random()*w, Math.random()*h, 18, light, 0.1);
+      for (let i = 0; i < 240; i++) {
+        craterAt(x, Math.random() * w, Math.random() * h, 1.5 + Math.random() * 15, dark, light, Math.random() < 0.06);
       }
-      x.globalAlpha = 1;
+      detailPass(x, w, h, 1.2);
     });
   }
   function earthlike(seaTop, seaMid, greens, capAlpha) {
@@ -289,22 +340,38 @@
       const sea = x.createLinearGradient(0, 0, 0, h);
       sea.addColorStop(0, seaTop); sea.addColorStop(0.5, seaMid); sea.addColorStop(1, seaTop);
       x.fillStyle = sea; x.fillRect(0, 0, w, h);
-      for (let i = 0; i < 26; i++) {
-        blob(x, Math.random() * w, h*0.15 + Math.random() * h * 0.7, 34,
-             greens[(Math.random() * greens.length) | 0], 0.85);
+      for (let i = 0; i < 30; i++) blob(x, Math.random() * w, Math.random() * h, 60, 'rgba(0,0,30,0.5)', 0.1);
+      const centers = [];
+      for (let i = 0; i < 24; i++) centers.push([Math.random() * w, h * 0.15 + Math.random() * h * 0.7]);
+      for (const c of centers) blob(x, c[0], c[1], 78, '#3a7ab8', 0.3); // shallow-water halo
+      for (const c of centers) {
+        blob(x, c[0], c[1], 64, greens[(Math.random() * greens.length) | 0], 0.9);
+        for (let k2 = 0; k2 < 4; k2++) blob(x, c[0] + (Math.random()-0.5)*150, c[1] + (Math.random()-0.5)*70, 30, greens[(Math.random() * greens.length) | 0], 0.8);
+        for (let k2 = 0; k2 < 7; k2++) blob(x, c[0] + (Math.random()-0.5)*190, c[1] + (Math.random()-0.5)*90, 13, greens[(Math.random() * greens.length) | 0], 0.7);
+        x.globalAlpha = 0.25; x.fillStyle = '#2a2a1a';
+        for (let k2 = 0; k2 < 40; k2++) {
+          x.fillRect(c[0] + (Math.random()-0.5)*120, c[1] + (Math.random()-0.5)*60, 2.5, 2.5);
+        }
+        x.globalAlpha = 1;
       }
-      for (let i = 0; i < 16; i++) {
-        blob(x, Math.random() * w, h*0.35 + Math.random() * h*0.3, 16, '#c2a25a', 0.4);
-      }
+      for (let i = 0; i < 14; i++) blob(x, Math.random() * w, h*0.38 + Math.random() * h*0.24, 22, '#c2a25a', 0.4);
       x.globalAlpha = capAlpha; x.fillStyle = '#f4f8ff';
       x.beginPath(); x.ellipse(w/2, 0, w/1.4, h*0.06, 0, 0, Math.PI*2); x.fill();
       x.beginPath(); x.ellipse(w/2, h, w/1.4, h*0.07, 0, 0, Math.PI*2); x.fill();
-      x.globalAlpha = 1;
-    });
+      detailPass(x, w, h, 1.6);
+    }, 2048, 1024);
   }
   const cloudTex = canvasTex((x, w, h) => {
     x.clearRect(0, 0, w, h);
-    for (let i = 0; i < 60; i++) blob(x, Math.random() * w, Math.random() * h, 24, '#ffffff', 0.16);
+    for (let i = 0; i < 40; i++) blob(x, Math.random() * w, Math.random() * h, 40, '#ffffff', 0.1);
+    for (let i = 0; i < 70; i++) blob(x, Math.random() * w, Math.random() * h, 18, '#ffffff', 0.14);
+    x.globalAlpha = 0.1; x.fillStyle = '#fff';
+    for (let i = 0; i < 60; i++) {
+      x.beginPath();
+      x.ellipse(Math.random() * w, Math.random() * h, 60 + Math.random() * 120, 4 + Math.random() * 8, 0, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.globalAlpha = 1;
   });
   function starTex(c1, c2, spot1, spot2) {
     return canvasTex((x, w, h) => {
@@ -398,7 +465,12 @@
       });
     }
     const mesh = new THREE.Mesh(geo, mat);
-    if (o.tilt) mesh.rotation.z = o.tilt;
+    o.qTilt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), o.tilt || 0);
+    o.spinAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(o.qTilt);
+    o.velNow = new THREE.Vector3();
+    o.prevCenter = o.center.clone();
+    o.spinW = 0;
+    mesh.quaternion.copy(o.qTilt);
     track(mesh, o.center);
     o.mesh = mesh;
     o.soi = o.soiMult ? o.r * o.soiMult : o.r * 7;
@@ -517,7 +589,7 @@
     tex: rocky('#9c4a3a', ['#c96a4a', '#6e3026', '#e0a080'], 46, null, 30), atmosphere: 0xd98a66, tilt: 0.3, bumpScale: 0.5, props: 'rocky', propColor: 0xa55038 });
   addOrbitLine(proxima.center, 1.489 * AU, 2.5);
   addPlanet({ name: 'Proxima c', r: 1.3 * RE, g: 12, center: orbitPos(proxima.center, 1.489 * AU, 210, 2.5),
-    tex: rocky('#b8d8e8', ['#dceef8', '#8ab8d0', '#eef8ff'], 36, null, 34), atmosphere: 0xbfe8ff, tilt: 0.35, bumpScale: 0.3, props: 'ice', propColor: 0xbfe8ff });
+    tex: rocky('#b8d8e8', ['#dceef8', '#8ab8d0', '#eef8ff'], 36, null, 34), atmosphere: 0xbfe8ff, tilt: 0.35, bumpScale: 0.3, props: 'rocky', propColor: 0xbfe8ff });
 
   // ===== ALPHA CENTAURI A & B (4.37 ly, no known planets) =====
   addStar({ name: 'Alpha Centauri A', r: 8.5e7, g: 280, center: V3(0.64, 0.1, -0.48).normalize().multiplyScalar(4.37 * LYS),
@@ -541,12 +613,12 @@
     lightColor: 0xff9a80, lightIntensity: 2.0, lightRange: 2e10, glowInner: 'rgba(255,130,90,1)', glowMid: 'rgba(200,55,25,0.4)' });
   (function () {
     const data = [
-      ['b', 1.12, 0.0115, '#7a4a30', ['#9c6a48', '#5a3520', '#b88a60'], 'lava'],
+      ['b', 1.12, 0.0115, '#7a4a30', ['#9c6a48', '#5a3520', '#b88a60'], 'rocky'],
       ['c', 1.10, 0.0158, '#8a5038', ['#aa7050', '#6a3a26', '#c89070'], 'rocky'],
       ['d', 0.78, 0.0223, '#9a8a6a', ['#b8a888', '#7a6a4a', '#d0c0a0'], 'rocky'],
-      ['e', 0.91, 0.0293, '#5a7a8a', ['#7a9aaa', '#3a5a6a', '#a0c0d0'], 'ice'],
-      ['f', 1.05, 0.0385, '#8ab0c8', ['#aad0e8', '#6a90a8', '#cae8f8'], 'ice'],
-      ['g', 1.13, 0.0469, '#a0c4d8', ['#c0e4f0', '#80a4b8', '#e0f4ff'], 'ice'],
+      ['e', 0.91, 0.0293, '#5a7a8a', ['#7a9aaa', '#3a5a6a', '#a0c0d0'], 'rocky'],
+      ['f', 1.05, 0.0385, '#8ab0c8', ['#aad0e8', '#6a90a8', '#cae8f8'], 'rocky'],
+      ['g', 1.13, 0.0469, '#a0c4d8', ['#c0e4f0', '#80a4b8', '#e0f4ff'], 'rocky'],
       ['h', 0.76, 0.0619, '#c0d8e8', ['#e0f0f8', '#a0b8c8', '#f0f8ff'], 'ice']
     ];
     for (let i = 0; i < data.length; i++) {
@@ -563,12 +635,12 @@
     lightColor: 0xffb098, lightIntensity: 2.0, lightRange: 1.4e10, glowInner: 'rgba(255,140,100,1)', glowMid: 'rgba(220,60,30,0.4)' });
   addOrbitLine(kepler.center, 0.0378 * AU, 3);
   addPlanet({ name: 'Kepler-186b', r: 1.07 * RE, g: 10.5, center: orbitPos(kepler.center, 0.0378 * AU, 290, 3),
-    tex: rocky('#2a2125', ['#d04a1a', '#7a2a10', '#3a2a22', '#ff7a2a'], 56, null, 22), atmosphere: 0xcc4422, tilt: 0.2, bumpScale: 0.65, props: 'lava', propColor: 0x3a2a22 });
+    tex: rocky('#2a2125', ['#d04a1a', '#7a2a10', '#3a2a22', '#ff7a2a'], 56, null, 22), atmosphere: 0xcc4422, tilt: 0.2, bumpScale: 0.65, props: 'rocky', propColor: 0x3a2a22 });
   addOrbitLine(kepler.center, 0.432 * AU, 5);
   addPlanet({ name: 'Kepler-186f', r: 1.17 * RE, g: 11.5, center: orbitPos(kepler.center, 0.432 * AU, 120, 5),
     tex: earthlike('#3a2f5e', '#4a3d78', ['#8a5fb0', '#6a4a92', '#b08ad0', '#5a3a80'], 0.85),
     atmosphere: 0xa080d8, clouds: cloudTex, tilt: 0.4, specular: 0x443366, shininess: 14, bumpScale: 0.3,
-    hasOcean: true, landFn: landBright, props: 'forest', propColor: 0x9a6fd0, trunkColor: 0x4a3550, rockColor: 0x6a5a85 });
+    hasOcean: true, landFn: landBright, props: 'rocky', propColor: 0x9a6fd0, rockColor: 0x6a5a85 });
 
   // ===== KEPLER-452 (~1400 ly) =====
   const k452 = addStar({ name: 'Kepler-452', r: 7.7e7, g: 270, center: V3(0.45, 0.3, 0.84).normalize().multiplyScalar(1400 * LYS),
@@ -578,7 +650,7 @@
   addPlanet({ name: 'Kepler-452b', r: 1.5 * RE, g: 14.7, center: orbitPos(k452.center, 1.046 * AU, 75, 2),
     tex: earthlike('#0d4a6a', '#0f5e88', ['#3a8a3a', '#4f9a44', '#6a8a30', '#2a7a4a'], 0.9),
     atmosphere: 0x7ac0e8, clouds: cloudTex, tilt: 0.35, specular: 0x336688, shininess: 15, bumpScale: 0.3,
-    hasOcean: true, landFn: landGreen, props: 'forest', propColor: 0x3a8a3a, trunkColor: 0x5a4028, rockColor: 0x7a8a7a });
+    hasOcean: true, landFn: landGreen, props: 'rocky', propColor: 0x3a8a3a, rockColor: 0x7a8a7a });
 
   // ===== 51 PEGASI (50 ly): first exoplanet ever found =====
   const peg51 = addStar({ name: '51 Pegasi', r: 8.6e7, g: 270, center: V3(0.9, 0.2, 0.39).normalize().multiplyScalar(50.6 * LYS),
@@ -587,6 +659,54 @@
   addOrbitLine(peg51.center, 0.0527 * AU, 2);
   addPlanet({ name: '51 Pegasi b', r: 1.27 * 6.9911e6, g: 22, center: orbitPos(peg51.center, 0.0527 * AU, 200, 2),
     tex: banded(['#e8b870', '#c89048', '#f8d8a0', '#a87030', '#ffc880'], null), tilt: 0.1, bump: false });
+
+  // ===== REAL MOTION: true rotation & orbital periods, time compressed =====
+  const TIME_SCALE = 100;           // 1 real second = 100 simulated seconds
+  const HOUR = 3600, DAY = 86400;
+  const byName = n => planets.find(p => p.name === n);
+  function setMotion(p, spinHours, parent, periodDays, R, ang0Deg, incDeg) {
+    if (spinHours) {
+      p.spinW = (Math.PI * 2) / (spinHours * HOUR);   // rad per simulated second
+      const q0 = new THREE.Quaternion().setFromAxisAngle(p.spinAxis, Math.random() * Math.PI * 2);
+      p.mesh.quaternion.premultiply(q0);
+    }
+    if (parent) {
+      p.orbit = { parent: parent, R: R, ang: ang0Deg * Math.PI / 180,
+                  inc: incDeg * Math.PI / 180, w: (Math.PI * 2) / (periodDays * DAY) };
+    }
+  }
+  setMotion(sun, 601);
+  setMotion(mercury, 1407.5, sun, 87.97, 0.387 * AU, 25, 3.4);
+  setMotion(venus, -5832.5, sun, 224.7, 0.723 * AU, 135, 3.39);  // retrograde
+  setMotion(earth, 23.93, sun, 365.25, AU, 0, 0);
+  setMotion(moon, 655.7, earth, 27.32, 3.84e7, 35, 5.1);          // tidally locked
+  setMotion(mars, 24.62, sun, 687, 1.52 * AU, 305, 1.85);
+  setMotion(jupiter, 9.93, sun, 4332.6, 5.2 * AU, 55, 1.3);
+  setMotion(saturn, 10.66, sun, 10759, 9.58 * AU, 160, 2.49);
+  setMotion(uranus, -17.24, sun, 30687, 19.2 * AU, 240, 0.77);
+  setMotion(neptune, 16.11, sun, 60190, 30.1 * AU, 95, 1.77);
+  setMotion(proxima, 1983);
+  setMotion(byName('Proxima b'), 11.19 * 24, proxima, 11.19, 0.0485 * AU, 40, 4);   // tidally locked
+  setMotion(byName('Proxima c'), 30, proxima, 1884, 1.489 * AU, 210, 2.5);
+  setMotion(byName('Alpha Centauri A'), 528);
+  setMotion(byName('Alpha Centauri B'), 980);
+  setMotion(byName('Sirius'), 134);
+  setMotion(byName("Barnard's Star"), 3120);
+  setMotion(trappist, 79);
+  (function () {
+    const orb = [['b', 1.51, 0.0115], ['c', 2.42, 0.0158], ['d', 4.05, 0.0223], ['e', 6.10, 0.0293],
+                 ['f', 9.21, 0.0385], ['g', 12.35, 0.0469], ['h', 18.77, 0.0619]];
+    for (let i = 0; i < orb.length; i++) {
+      setMotion(byName('TRAPPIST-1' + orb[i][0]), orb[i][1] * 24, trappist, orb[i][1], orb[i][2] * AU, i * 51, 2 + i * 0.5);
+    }
+  })();
+  setMotion(kepler, 814);
+  setMotion(byName('Kepler-186b'), 3.89 * 24, kepler, 3.89, 0.0378 * AU, 290, 3);
+  setMotion(byName('Kepler-186f'), 129.9 * 24, kepler, 129.9, 0.432 * AU, 120, 5);
+  setMotion(k452, 638);
+  setMotion(byName('Kepler-452b'), 32, k452, 384.8, 1.046 * AU, 75, 2);
+  setMotion(peg51, 504);
+  setMotion(byName('51 Pegasi b'), 4.23 * 24, peg51, 4.23, 0.0527 * AU, 200, 2);
 
   // ===== SAGITTARIUS A* — the supermassive black hole at the galaxy's heart (26,000 ly) =====
   const blackhole = addPlanet({ name: 'Sagittarius A*', r: 1.9e17, g: 1000,
@@ -711,6 +831,12 @@
         const x = c.getContext('2d');
         x.drawImage(img, 0, 0, 1024, 512);
         x.getImageData(0, 0, 1, 1); // CORS taint check
+        for (let i = 0; i < 1500; i++) {
+          x.globalAlpha = 0.03;
+          x.fillStyle = Math.random() > 0.5 ? '#000' : '#fff';
+          x.fillRect(Math.random() * 1024, Math.random() * 512, 2, 2);
+        }
+        x.globalAlpha = 1;
         const t = new THREE.CanvasTexture(c);
         t.encoding = THREE.sRGBEncoding;
         t.wrapS = THREE.RepeatWrapping;
@@ -862,8 +988,8 @@
     }
     rig.armL = arm(-1);
     rig.armR = arm(1);
-    rig.armL.sh.rotation.z = 0.12;
-    rig.armR.sh.rotation.z = -0.12;
+    rig.armL.sh.rotation.z = -0.12;
+    rig.armR.sh.rotation.z = 0.12;
 
     // two-segment legs (hip + knee) with boots
     function leg(side) {
@@ -922,6 +1048,8 @@
   const camDir = V3(0, 0, -1);
   const lastFacing = V3(0, 0, -1);
   let walkPhase = 0, squash = 0, wasGrounded = true, groundSpeedNow = 0;
+  let jumpGrace = 0;
+  let airCarry = null;   // the planet whose rotating frame we move in
   let lean = 0;
   let target = null;
   let lastFire = -9;
@@ -956,11 +1084,9 @@
   function sampleIsLand(p, n) {
     const id = planetImgData(p);
     if (!id) return true;
-    const tilt = p.tilt || 0;
-    const ca = Math.cos(-tilt), sa = Math.sin(-tilt);
-    const lx = n.x * ca - n.y * sa;
-    const ly = n.x * sa + n.y * ca;
-    const lz = n.z;
+    tmpQ.copy(p.mesh.quaternion).invert();
+    tmpV3.copy(n).applyQuaternion(tmpQ);
+    const lx = tmpV3.x, ly = tmpV3.y, lz = tmpV3.z;
     const theta = Math.acos(Math.max(-1, Math.min(1, ly)));
     let phi = Math.atan2(lz, -lx);
     if (phi < 0) phi += Math.PI * 2;
@@ -990,7 +1116,7 @@
     function reg(obj, parts, type) {
       obj.visible = false;
       scene.add(obj);
-      propAll.push({ obj: obj, parts: parts, type: type, w: new THREE.Vector3(), on: false });
+      propAll.push({ obj: obj, parts: parts, type: type, w: new THREE.Vector3(), local: new THREE.Vector3(), qLocal: new THREE.Quaternion(), on: false });
     }
     const rockGeo = new THREE.DodecahedronGeometry(1, 0);
     for (let i = 0; i < 46; i++) {
@@ -1027,20 +1153,21 @@
   };
   function scatterProps(p) {
     propsPlanet = p;
-    scatterCenter.copy(pos);
     const cfg = PRESETS[p.props];
     const n0 = new THREE.Vector3().copy(pos).sub(p.center).normalize();
     const t1 = new THREE.Vector3().crossVectors(n0, Math.abs(n0.y) < 0.9 ? V3(0, 1, 0) : V3(1, 0, 0)).normalize();
     const t2 = new THREE.Vector3().crossVectors(n0, t1).normalize();
     const n2 = new THREE.Vector3();
     const q = new THREE.Quaternion(), qy = new THREE.Quaternion();
+    const invQScatter = p.mesh.quaternion.clone().invert();
+    scatterCenter.copy(pos).sub(p.center).applyQuaternion(invQScatter); // planet-local
     for (const e of propAll) {
       const want = (e.type === 'rock' && cfg.rock) || (e.type === 'tree' && cfg.tree) || (e.type === 'crystal' && cfg.crystal);
       if (!want) { e.on = false; e.obj.visible = false; continue; }
       let placed = false;
       for (let a = 0; a < 5; a++) {
         const ang = Math.random() * Math.PI * 2;
-        const rad = 12 + Math.random() * 320;
+        const rad = 25 + Math.random() * 320;
         n2.copy(pos).sub(p.center)
           .addScaledVector(t1, Math.cos(ang) * rad)
           .addScaledVector(t2, Math.sin(ang) * rad)
@@ -1050,6 +1177,8 @@
         q.setFromUnitVectors(V3(0, 1, 0), n2);
         qy.setFromAxisAngle(n2, Math.random() * Math.PI * 2);
         e.obj.quaternion.copy(qy.multiply(q));
+        e.local.copy(e.w).sub(p.center).applyQuaternion(invQScatter);
+        e.qLocal.copy(invQScatter).multiply(e.obj.quaternion);
         if (e.type === 'rock') {
           const s = 0.3 + Math.random() * 1.8;
           e.obj.scale.set(s * (0.7 + Math.random() * 0.6), s * (0.5 + Math.random() * 0.5), s * (0.7 + Math.random() * 0.6));
@@ -1126,6 +1255,80 @@
     if (e.button === 0 && document.pointerLockElement) fireAsteroid();
   });
 
+  // ---------- Music (solo piano, Interstellar-inspired) ----------
+  let audioCtx = null, musicOn = true, musicNodes = null;
+  function startMusic() {
+    if (!musicOn || musicNodes) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.resume();
+      const master = audioCtx.createGain();
+      master.gain.value = 0;
+      master.connect(audioCtx.destination);
+      master.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 3);
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 2600; lp.Q.value = 0.3;
+      lp.connect(master);
+      musicNodes = { master: master, lp: lp, step: 0, beat: 0, timer: null };
+
+      // soft felt-piano voice: fundamental + quiet harmonics, fast attack, long decay
+      function piano(freq, t, dur, vol) {
+        const g = audioCtx.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(vol, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        g.connect(lp);
+        const partials = [[1, 1], [2, 0.4], [3, 0.12], [4.005, 0.05]];
+        for (const p of partials) {
+          const o = audioCtx.createOscillator();
+          o.type = 'sine';
+          o.frequency.value = freq * p[0];
+          const pg = audioCtx.createGain();
+          pg.gain.value = p[1];
+          o.connect(pg); pg.connect(g);
+          o.start(t); o.stop(t + dur + 0.1);
+        }
+      }
+
+      // A-minor progression, arpeggiated like the Interstellar motif
+      const A3 = 220.00, C4 = 261.63, E4 = 329.63, A4 = 440.00, B4 = 493.88, C5 = 523.25, E5 = 659.25;
+      const F2 = 87.31, C3 = 130.81, G2 = 98.00, A2 = 110.00, E3 = 164.81, F3 = 174.61, G3 = 196.00;
+      const bars = [
+        { bass: [A2, E3], arp: [A3, C4, E4, A4, E4, C4] },
+        { bass: [F2, F3], arp: [A3, C4, F3 * 2, A4, F3 * 2, C4] },
+        { bass: [C3, G3], arp: [G3, C4, E4, C5, E4, C4] },
+        { bass: [G2, G3], arp: [G3, B4 / 2, D_(), B4, D_(), B4 / 2] }
+      ];
+      function D_() { return 293.66; }
+      function tick() {
+        if (!musicNodes) return;
+        const bar = bars[musicNodes.step % bars.length];
+        const t = audioCtx.currentTime + 0.03;
+        const b = musicNodes.beat % 6;
+        if (b === 0) {
+          piano(bar.bass[0], t, 5.5, 0.30);            // deep bass once per bar
+          piano(bar.bass[1], t + 0.02, 4.5, 0.16);
+        }
+        piano(bar.arp[b], t, 2.8, 0.20);               // flowing arpeggio
+        if (b === 3 && musicNodes.step % 2 === 1) {
+          piano(bar.arp[0] * 2, t + 0.4, 2.2, 0.10);   // sparse high echo
+        }
+        musicNodes.beat++;
+        if (musicNodes.beat % 6 === 0) musicNodes.step++;
+      }
+      tick();
+      musicNodes.timer = setInterval(tick, 800);
+    } catch (e) { /* audio unavailable */ }
+  }
+  function stopMusic() {
+    if (!musicNodes) return;
+    clearInterval(musicNodes.timer);
+    const mn = musicNodes;
+    musicNodes = null;
+    mn.master.gain.setTargetAtTime(0, audioCtx.currentTime, 0.4);
+    setTimeout(() => { try { mn.master.disconnect(); } catch (e) {} }, 2000);
+  }
+
   // ---------- Menu ----------
   const overlay = document.getElementById('overlay');
   const menuButtons = document.getElementById('menuButtons');
@@ -1148,7 +1351,12 @@
   btnBack.addEventListener('click', showMenuHome);
   document.addEventListener('pointerlockchange', () => {
     overlay.style.display = document.pointerLockElement ? 'none' : 'flex';
-    if (!document.pointerLockElement) showMenuHome();
+    if (!document.pointerLockElement) {
+      showMenuHome();
+      for (const k2 in keys) keys[k2] = false;
+      charging = false; charge = 0;
+    }
+    if (document.pointerLockElement) startMusic();
   });
   document.addEventListener('mousemove', e => {
     if (!document.pointerLockElement) return;
@@ -1166,6 +1374,11 @@
   document.getElementById('setQuality').addEventListener('change', e => {
     renderer.setPixelRatio(Math.min(devicePixelRatio, parseFloat(e.target.value)));
   });
+  document.getElementById('setMusic').addEventListener('change', e => {
+    musicOn = e.target.checked;
+    if (musicOn && document.pointerLockElement) startMusic();
+    else if (!musicOn) stopMusic();
+  });
   function renderAchievements() {
     const list = document.getElementById('achList');
     const worlds = planets.filter(p => !p.isStar);
@@ -1173,8 +1386,8 @@
       worlds.filter(p => visited.has(p.name)).length + ' / ' + worlds.length + ' worlds explored</div>';
     for (const p of worlds) {
       const ok = visited.has(p.name);
-      html += '<div class="achRow"><span>' + (ok ? '🪐 ' : '⚫ ') + p.name + '</span><span class="' +
-        (ok ? 'ok">✓ visited' : 'no">not yet') + '</span></div>';
+      html += '<div class="achRow"><span>' + p.name + '</span><span class="' +
+        (ok ? 'ok">visited' : 'no">not yet') + '</span></div>';
     }
     list.innerHTML = html;
   }
@@ -1187,6 +1400,17 @@
   const tmpC = new THREE.Color();
 
   function damp(cur, tgt, k, dt) { return cur + (tgt - cur) * (1 - Math.exp(-k * dt)); }
+
+  const fvA = new THREE.Vector3(), fvB = new THREE.Vector3();
+  function frameVel(p, at, out) {
+    out.copy(p.velNow);
+    if (p.spinW) {
+      fvA.copy(at).sub(p.center);
+      fvB.crossVectors(p.spinAxis, fvA);
+      out.addScaledVector(fvB, p.spinW * TIME_SCALE);
+    }
+    return out;
+  }
 
   function moveInput(h, right, out) {
     out.set(0, 0, 0);
@@ -1213,7 +1437,8 @@
     const mv = moveInput(h, right, new THREE.Vector3());
     vel.copy(dir).multiplyScalar(power).addScaledVector(mv, WALK_SPEED);
     grounded = false;
-    if (charge > 0.95) toast('🚀 MAX POWER!');
+    jumpGrace = 0.25;
+    if (charge > 0.95) toast('MAX POWER!');
   }
 
   function segHitsSphere(a, b, c, R) {
@@ -1248,6 +1473,7 @@
     prevPos.copy(pos);
     vel.copy(outDir).multiplyScalar(2e16);
     grounded = false;
+    airCarry = null;
     groundPlanet = earth;
     up.copy(outDir); smoothUp.copy(outDir);
     fwdRef.set(0, 0, -1).addScaledVector(outDir, -outDir.dot(fwdRef));
@@ -1259,13 +1485,13 @@
     target = null;
     hideProps();
     document.getElementById('targetBanner').style.display = 'none';
-    toast(invertedMode ? '\ud83c\udf17 Beyond the horizon \u2014 the Inverse Universe' : '\ud83c\udf0d Returned to the true universe');
+    toast(invertedMode ? 'Beyond the horizon - the Inverse Universe' : 'Returned to the true universe');
   }
 
   function landOn(p) {
     if (p.blackhole) { enterBlackhole(); return; }
     if (p.deadly) {
-      toast('☀️ TOO HOT! Respawning…');
+      toast('TOO HOT! Respawning...');
       spawnOn(earth);
       return;
     }
@@ -1279,7 +1505,7 @@
     if (!visited.has(p.name)) {
       visited.add(p.name);
       saveVisited();
-      toast('🪐 Welcome to ' + p.name + '!');
+      toast('Welcome to ' + p.name + '!');
     }
   }
 
@@ -1296,7 +1522,7 @@
     if (best) {
       target = best;
       banner.style.display = 'block';
-      toast(' Locked: ' + best.name);
+      toast('Locked: ' + best.name);
     } else {
       toast('No planet in the crosshair');
     }
@@ -1313,7 +1539,7 @@
         if (ds < dBest) { dBest = ds; rr = p.r; }
       }
       overviewDist = Math.max((dBest + rr) * 3, rr * 12);
-      toast('\ud83d\udef0 Overview \u2014 mouse orbits, scroll zooms, C returns');
+      toast('Overview - mouse orbits, scroll zooms, C returns');
     }
     document.getElementById('crosshair').style.display = overview ? 'none' : 'block';
   }
@@ -1367,8 +1593,8 @@
     fire.scale.set(size * 5, size * 5, 1);
     mesh.add(fire);
     scene.add(mesh);
-    asteroids.push({ mesh: mesh, w: startW, vel: velA, tgt: tgt, size: size });
-    toast('☄️ Asteroid inbound → ' + tgt.name);
+    asteroids.push({ mesh: mesh, w: startW, vel: velA, tgt: tgt, size: size, n: impactN.clone(), tLeft: flightT });
+    toast('Asteroid inbound: ' + tgt.name);
   }
 
   function deformCrater(p, nWorld) {
@@ -1418,7 +1644,7 @@
     boomW.copy(impactW); boomAge = 0; boomDur = 1.2;
     boomLight.distance = p.r * 2;
     if (p === groundPlanet && grounded) squash = 0.7;
-    toast('💥 Impact on ' + p.name + '!');
+    toast('Impact on ' + p.name + '!');
   }
 
   // ---------- HUD ----------
@@ -1455,8 +1681,56 @@
     requestAnimationFrame(animate);
     const dt = Math.min(clock.getDelta(), 0.05);
     elapsed += dt;
+    jumpGrace = Math.max(0, jumpGrace - dt);
 
-    for (const s of stars) s.mesh.rotation.y += 0.004 * dt;
+    // --- planetary motion: orbits + axial spin at real (compressed) rates ---
+    const simdt = dt * TIME_SCALE;
+    for (const p of planets) {
+      if (p.orbit) {
+        p.prevCenter.copy(p.center);
+        p.orbit.ang += p.orbit.w * simdt;
+        const oa = p.orbit.ang, oi = p.orbit.inc, oR = p.orbit.R, c0 = p.orbit.parent.center;
+        p.center.set(
+          c0.x + oR * Math.cos(oa),
+          c0.y + oR * Math.sin(oa) * Math.sin(oi),
+          c0.z + oR * Math.sin(oa) * Math.cos(oi));
+        p.velNow.copy(p.center).sub(p.prevCenter).divideScalar(dt);
+      }
+      if (p.spinW) {
+        tmpQ.setFromAxisAngle(p.spinAxis, p.spinW * simdt);
+        p.mesh.quaternion.premultiply(tmpQ);
+      }
+    }
+    // --- co-rotating frame: near a world you move WITH it (orbit + spin) ---
+    if (grounded) {
+      airCarry = groundPlanet;
+    } else {
+      let want = null, bd = Infinity;
+      for (const p of planets) {
+        if (p.isStar) continue;
+        const ds = pos.distanceTo(p.center) - p.r;
+        if (ds < bd) { bd = ds; want = (ds < p.r * 1.5) ? p : null; }
+      }
+      if (want !== airCarry) {
+        if (airCarry) vel.add(frameVel(airCarry, pos, tmpV));  // leave frame: gain its velocity
+        if (want) vel.sub(frameVel(want, pos, tmpV));          // enter frame: motion becomes relative
+        airCarry = want;
+      }
+    }
+    if (airCarry) {
+      const gp = airCarry;
+      if (gp.orbit) pos.add(tmpV.copy(gp.center).sub(gp.prevCenter));
+      if (gp.spinW) {
+        const qs = tmpQ.setFromAxisAngle(gp.spinAxis, gp.spinW * simdt);
+        pos.sub(gp.center).applyQuaternion(qs).add(gp.center);
+        vel.applyQuaternion(qs);
+        up.applyQuaternion(qs);
+        smoothUp.applyQuaternion(qs).normalize();
+        fwdRef.applyQuaternion(qs);
+        lastFacing.applyQuaternion(qs);
+      }
+      if (grounded) prevPos.copy(pos);
+    }
     if (earth.cloudMesh) earth.cloudMesh.rotation.y += 0.01 * dt;
     blackhole.disk.rotateZ(dt * 0.03);
 
@@ -1520,6 +1794,7 @@
     const right = new THREE.Vector3().crossVectors(h, smoothUp).normalize();
     const mv = moveInput(h, right, new THREE.Vector3());
 
+    if (grounded && keys.Space && !charging) { charging = true; charge = 0; }
     if (charging && grounded) charge = Math.min(1, charge + dt / CHARGE_TIME);
 
     let thrusting = false;
@@ -1534,7 +1809,7 @@
       pos.copy(groundPlanet.center).addScaledVector(n, groundPlanet.r + PLAYER_FEET);
       up.copy(n);
       prevPos.copy(pos);
-      if (mv.lengthSq() > 0) lastFacing.copy(mv);
+      if (mv.lengthSq() > 0) lastFacing.lerp(mv, 1 - Math.exp(-14 * dt)).normalize();
     } else {
       // near-surface gravity boost: snappy real-feeling jumps instead of floating
       const gMult = 1 + 2.2 * Math.max(0, 1 - distSurf / 250);
@@ -1552,38 +1827,49 @@
       } else if (elapsed - lastThrustTime > FUEL_REGEN_DELAY) {
         fuel = Math.min(FUEL_MAX, fuel + FUEL_REFILL_AIR * dt);
       }
-      if (vel.length() > effCap) vel.setLength(effCap);
+      if (nearestP === airCarry) tmpV3.copy(vel);
+      else tmpV3.copy(vel).sub(nearestP.velNow);
+      if (tmpV3.length() > effCap) {
+        tmpV3.setLength(effCap);
+        if (nearestP === airCarry) vel.copy(tmpV3);
+        else vel.copy(nearestP.velNow).add(tmpV3);
+      }
 
       prevPos.copy(pos);
       pos.addScaledVector(vel, dt);
-      if (mv.lengthSq() > 0) lastFacing.copy(mv);
+      if (mv.lengthSq() > 0) lastFacing.lerp(mv, 1 - Math.exp(-10 * dt)).normalize();
       if (thrusting) {
-        lastFacing.copy(camDir);
-      } else if (vel.lengthSq() > 25) {
-        lastFacing.copy(vel);
+        // turn smoothly into the thrust direction
+        lastFacing.lerp(camDir, 1 - Math.exp(-8 * dt)).normalize();
       }
+      // while coasting the heading is kept — no sudden direction snaps
 
       for (const p of planets) {
+        if (jumpGrace > 0 && p === groundPlanet) continue; // just launched off it
         const surf = p.r + PLAYER_FEET;
         const n = tmpV.copy(pos).sub(p.center);
         const d = n.length();
-        const vr = vel.dot(n.normalize());
+        const vr = (p === airCarry ? tmpV2.copy(vel) : tmpV2.copy(vel).sub(p.velNow)).dot(n.normalize());
         if (d < surf ||
             (d < surf + 5 && vr < 0) ||
-            segHitsSphere(prevPos, pos, p.center, surf)) {
+            (vr < 0 && segHitsSphere(prevPos, pos, p.center, surf))) {
           landOn(p);
           break;
         }
       }
-      if (pos.length() > 1e22) { toast('🛸 Lost in space… respawning'); spawnOn(earth); }
+      if (pos.length() > 1e22) { toast('Lost in space... respawning'); spawnOn(earth); }
     }
 
     // ---------- Surface props: appear as you near a world ----------
-    if (!nearestP.isStar && nearestP.props && distSurf < 4500) {
-      if (propsPlanet !== nearestP || pos.distanceTo(scatterCenter) > 280) scatterProps(nearestP);
-    } else if (propsPlanet) {
-      hideProps();
-    }
+    try {
+      if (nearestP === earth && distSurf < 4500) {
+        tmpQ.copy(nearestP.mesh.quaternion).invert();
+        tmpV.copy(pos).sub(nearestP.center).applyQuaternion(tmpQ);
+        if (propsPlanet !== nearestP || tmpV.distanceTo(scatterCenter) > 280) scatterProps(nearestP);
+      } else if (propsPlanet) {
+        hideProps();
+      }
+    } catch (err) { hideProps(); }
 
     // ---------- Atmosphere immersion ----------
     let skyFactor = 0;
@@ -1610,6 +1896,10 @@
     // ---------- Asteroids & explosions ----------
     for (let i = asteroids.length - 1; i >= 0; i--) {
       const a = asteroids[i];
+      a.tLeft -= dt;
+      if (a.tLeft > 0.05) {
+        a.vel.copy(a.tgt.center).addScaledVector(a.n, a.tgt.r).sub(a.w).divideScalar(a.tLeft);
+      }
       a.w.addScaledVector(a.vel, dt);
       a.mesh.rotation.x += dt * 3; a.mesh.rotation.y += dt * 2;
       a.mesh.position.copy(a.w).sub(pos);
@@ -1663,8 +1953,8 @@
       rig.armR.sh.rotation.x = damp(rig.armR.sh.rotation.x,  sw * amp * 0.8, 14, dt);
       rig.armL.el.rotation.x = damp(rig.armL.el.rotation.x, 0.3 + Math.max(0, swB) * 0.55, 14, dt);
       rig.armR.el.rotation.x = damp(rig.armR.el.rotation.x, 0.3 + Math.max(0, sw) * 0.55, 14, dt);
-      rig.armL.sh.rotation.z = damp(rig.armL.sh.rotation.z, 0.12, k, dt);
-      rig.armR.sh.rotation.z = damp(rig.armR.sh.rotation.z, -0.12, k, dt);
+      rig.armL.sh.rotation.z = damp(rig.armL.sh.rotation.z, -0.12, k, dt);
+      rig.armR.sh.rotation.z = damp(rig.armR.sh.rotation.z, 0.12, k, dt);
       rig.torso.rotation.x = damp(rig.torso.rotation.x, -(0.06 + runFrac * 0.16), k, dt);
       rig.torso.rotation.z = damp(rig.torso.rotation.z, sw * 0.05, k, dt);
       rig.torso.position.y = 1.55 + Math.abs(sw) * (0.05 + runFrac * 0.05);
@@ -1680,8 +1970,8 @@
       rig.armR.sh.rotation.x = damp(rig.armR.sh.rotation.x, charging ? -0.9 : Math.sin(elapsed * 1.8 + 0.7) * 0.03, 10, dt);
       rig.armL.el.rotation.x = damp(rig.armL.el.rotation.x, charging ? 0.2 : 0.28 + Math.sin(elapsed * 1.8) * 0.04, 10, dt);
       rig.armR.el.rotation.x = damp(rig.armR.el.rotation.x, charging ? 0.2 : 0.28 + Math.sin(elapsed * 1.8 + 1) * 0.04, 10, dt);
-      rig.armL.sh.rotation.z = damp(rig.armL.sh.rotation.z, charging ? 0.3 : 0.12, 10, dt);
-      rig.armR.sh.rotation.z = damp(rig.armR.sh.rotation.z, charging ? -0.3 : -0.12, 10, dt);
+      rig.armL.sh.rotation.z = damp(rig.armL.sh.rotation.z, charging ? -0.3 : -0.12, 10, dt);
+      rig.armR.sh.rotation.z = damp(rig.armR.sh.rotation.z, charging ? 0.3 : 0.12, 10, dt);
       rig.torso.rotation.x = damp(rig.torso.rotation.x, -crouch * 0.35, 10, dt);
       rig.torso.rotation.z = damp(rig.torso.rotation.z, 0, k, dt);
       rig.torso.position.y = damp(rig.torso.position.y, 1.55 - crouch * 0.3 + Math.sin(elapsed * 2) * 0.02, 10, dt);
@@ -1692,12 +1982,12 @@
       rig.legR.hip.rotation.x = damp(rig.legR.hip.rotation.x, -0.2, 8, dt);
       rig.legL.knee.rotation.x = damp(rig.legL.knee.rotation.x, -0.15, 8, dt);
       rig.legR.knee.rotation.x = damp(rig.legR.knee.rotation.x, -0.25, 8, dt);
-      rig.armL.sh.rotation.x = damp(rig.armL.sh.rotation.x, -0.85, 8, dt);
-      rig.armR.sh.rotation.x = damp(rig.armR.sh.rotation.x, -0.85, 8, dt);
-      rig.armL.el.rotation.x = damp(rig.armL.el.rotation.x, 0.1, 8, dt);
-      rig.armR.el.rotation.x = damp(rig.armR.el.rotation.x, 0.1, 8, dt);
-      rig.armL.sh.rotation.z = damp(rig.armL.sh.rotation.z, 0.3, 8, dt);
-      rig.armR.sh.rotation.z = damp(rig.armR.sh.rotation.z, -0.3, 8, dt);
+      rig.armL.sh.rotation.x = damp(rig.armL.sh.rotation.x, -0.35, 8, dt);
+      rig.armR.sh.rotation.x = damp(rig.armR.sh.rotation.x, -0.35, 8, dt);
+      rig.armL.el.rotation.x = damp(rig.armL.el.rotation.x, 0.3 + Math.sin(elapsed * 3.2) * 0.08, 8, dt);
+      rig.armR.el.rotation.x = damp(rig.armR.el.rotation.x, 0.3 + Math.sin(elapsed * 3.2 + 0.9) * 0.08, 8, dt);
+      rig.armL.sh.rotation.z = damp(rig.armL.sh.rotation.z, -0.55 - Math.sin(elapsed * 3.2) * 0.06, 8, dt);
+      rig.armR.sh.rotation.z = damp(rig.armR.sh.rotation.z, 0.55 + Math.sin(elapsed * 3.2 + 0.9) * 0.06, 8, dt);
       rig.torso.rotation.x = damp(rig.torso.rotation.x, 0.1, 8, dt);
       rig.torso.rotation.z = damp(rig.torso.rotation.z, Math.sin(elapsed * 3) * 0.05, 8, dt);
       rig.torso.position.y = damp(rig.torso.position.y, 1.55, k, dt);
@@ -1711,10 +2001,10 @@
       rig.legR.knee.rotation.x = damp(rig.legR.knee.rotation.x, -0.6 - fl * 0.1, 6, dt);
       rig.armL.sh.rotation.x = damp(rig.armL.sh.rotation.x, -0.2 + fl * 0.06, 6, dt);
       rig.armR.sh.rotation.x = damp(rig.armR.sh.rotation.x, -0.2 + fl2 * 0.06, 6, dt);
-      rig.armL.sh.rotation.z = damp(rig.armL.sh.rotation.z, 1.05 + fl2 * 0.08, 6, dt);
-      rig.armR.sh.rotation.z = damp(rig.armR.sh.rotation.z, -1.05 - fl * 0.08, 6, dt);
-      rig.armL.el.rotation.x = damp(rig.armL.el.rotation.x, 0.45, 6, dt);
-      rig.armR.el.rotation.x = damp(rig.armR.el.rotation.x, 0.45, 6, dt);
+      rig.armL.sh.rotation.z = damp(rig.armL.sh.rotation.z, -1.05 - fl2 * 0.12, 6, dt);
+      rig.armR.sh.rotation.z = damp(rig.armR.sh.rotation.z, 1.05 + fl * 0.12, 6, dt);
+      rig.armL.el.rotation.x = damp(rig.armL.el.rotation.x, 0.4 + Math.sin(elapsed * 2.4) * 0.18, 6, dt);
+      rig.armR.el.rotation.x = damp(rig.armR.el.rotation.x, 0.4 + Math.sin(elapsed * 2.4 + 1.1) * 0.18, 6, dt);
       rig.torso.rotation.x = damp(rig.torso.rotation.x, 0.05, 6, dt);
       rig.torso.rotation.z = damp(rig.torso.rotation.z, fl * 0.04, 6, dt);
       rig.torso.position.y = damp(rig.torso.position.y, 1.55, k, dt);
@@ -1730,9 +2020,9 @@
     }
 
     // ---- Player orientation ----
-    lastFacing.addScaledVector(smoothUp, -lastFacing.dot(smoothUp));
-    if (lastFacing.lengthSq() < 1e-6) lastFacing.copy(h);
-    lastFacing.normalize();
+    tmpV.copy(lastFacing).addScaledVector(smoothUp, -lastFacing.dot(smoothUp));
+    if (tmpV.lengthSq() > 1e-4) lastFacing.copy(tmpV).normalize();
+    else lastFacing.copy(h);
     const q1 = new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), smoothUp);
     const f0 = V3(0, 0, -1).applyQuaternion(q1);
     f0.addScaledVector(smoothUp, -f0.dot(smoothUp)).normalize();
@@ -1785,9 +2075,17 @@
 
     // ---- Floating origin ----
     for (const ro of renderObjs) ro.o.position.copy(ro.w).sub(pos);
-    for (const e of propAll) if (e.on) e.obj.position.copy(e.w).sub(pos);
+    for (const e of propAll) {
+      if (!e.on) continue;
+      if (propsPlanet) {
+        e.w.copy(e.local).applyQuaternion(propsPlanet.mesh.quaternion).add(propsPlanet.center);
+        e.obj.quaternion.copy(propsPlanet.mesh.quaternion).multiply(e.qLocal);
+      }
+      e.obj.position.copy(e.w).sub(pos);
+    }
     const camW = tmpV3.copy(camera.position).add(pos);
     for (const l of labels) {
+      if (l.body) l.w.set(l.body.center.x, l.body.center.y + l.body.r * 1.8, l.body.center.z);
       const dist = l.w.distanceTo(camW);
       let s = Math.max(l.r * 2.4, dist * 0.022);
       if (target && l.body === target) s *= 2.2;
