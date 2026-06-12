@@ -589,7 +589,7 @@
     tex: banded(['#e8b870', '#c89048', '#f8d8a0', '#a87030', '#ffc880'], null), tilt: 0.1, bump: false });
 
   // ===== SAGITTARIUS A* — the supermassive black hole at the galaxy's heart (26,000 ly) =====
-  const blackhole = addPlanet({ name: 'Sagittarius A*', r: 3.8e17, g: 1000,
+  const blackhole = addPlanet({ name: 'Sagittarius A*', r: 1.9e17, g: 1000,
     center: V3(0.45, -0.2, 0.87).normalize().multiplyScalar(26000 * LYS),
     tex: canvasTex((x, w, h) => { x.fillStyle = '#000'; x.fillRect(0, 0, w, h); }, 64, 32),
     emissive: true });
@@ -1239,7 +1239,26 @@
   function enterBlackhole() {
     invertedMode = !invertedMode;
     renderer.domElement.style.filter = invertedMode ? 'invert(1)' : '';
-    spawnOn(earth);
+    // hurled out through the other side — you emerge FROM the hole, stretched,
+    // streaking away into the mirrored universe
+    const outDir = vel.lengthSq() > 1
+      ? vel.clone().normalize()
+      : pos.clone().sub(blackhole.center).normalize().negate();
+    pos.copy(blackhole.center).addScaledVector(outDir, blackhole.r * 2.2);
+    prevPos.copy(pos);
+    vel.copy(outDir).multiplyScalar(2e16);
+    grounded = false;
+    groundPlanet = earth;
+    up.copy(outDir); smoothUp.copy(outDir);
+    fwdRef.set(0, 0, -1).addScaledVector(outDir, -outDir.dot(fwdRef));
+    if (fwdRef.lengthSq() < 1e-6) fwdRef.set(1, 0, 0);
+    fwdRef.normalize();
+    lastFacing.copy(outDir);
+    yaw = 0; pitch = 0.3; charge = 0; charging = false;
+    fuel = FUEL_MAX;
+    target = null;
+    hideProps();
+    document.getElementById('targetBanner').style.display = 'none';
     toast(invertedMode ? '\ud83c\udf17 Beyond the horizon \u2014 the Inverse Universe' : '\ud83c\udf0d Returned to the true universe');
   }
 
@@ -1469,11 +1488,16 @@
 
     if (grounded) {
       up.copy(pos).sub(groundPlanet.center).normalize();
+    } else if (distSurf < nearestP.r * 6) {
+      // close to a world: align with its surface for landing
+      up.copy(pos).sub(nearestP.center).normalize();
     } else {
-      up.copy(pos).sub(domBody.center).normalize();
+      // deep-space cruise: hold a stable horizon — no flipping when
+      // gravity fields hand over mid-flight
+      up.copy(smoothUp);
     }
     const prevUp = new THREE.Vector3().copy(smoothUp);
-    smoothUp.lerp(up, 1 - Math.pow(0.002, dt)).normalize();
+    smoothUp.lerp(up, 1 - Math.pow(grounded ? 0.002 : 0.03, dt)).normalize();
     tmpQ.setFromUnitVectors(prevUp, smoothUp);
     fwdRef.applyQuaternion(tmpQ);
     fwdRef.addScaledVector(smoothUp, -fwdRef.dot(smoothUp));
