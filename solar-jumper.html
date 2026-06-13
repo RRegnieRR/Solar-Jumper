@@ -40,29 +40,6 @@
     width: 8px; height: 8px; border: 1px solid rgba(255,255,255,.7); border-radius: 50%;
     z-index: 5; pointer-events: none;
   }
-  #laserGun {
-    position: fixed; right: 12%; bottom: -10px; width: 300px; height: 260px;
-    z-index: 4; pointer-events: none; display: none;
-    transform-origin: 80% 100%;
-  }
-  #laserGun.firing { animation: laserKick .08s ease-out; }
-  @keyframes laserKick { 0%{transform:translate(0,0)} 50%{transform:translate(6px,10px)} 100%{transform:translate(0,0)} }
-  #laserBody {
-    position: absolute; right: 36px; bottom: -50px; width: 84px; height: 300px;
-    background: linear-gradient(90deg,#1d222c,#566276 42%,#2b323f);
-    border-radius: 16px 16px 4px 4px; transform: rotate(-24deg);
-    box-shadow: inset 0 0 16px rgba(0,0,0,.65), 0 0 12px rgba(0,0,0,.6);
-  }
-  #laserBody:before {
-    content:''; position:absolute; left:18px; top:40px; width:10px; height:180px;
-    background: linear-gradient(#7c8aa3,#39404e); border-radius:6px; opacity:.7;
-  }
-  #laserEmitter {
-    position: absolute; right: 116px; top: 6px; width: 44px; height: 44px;
-    border-radius: 50%; background: radial-gradient(circle,#fff,#ff3a22 58%,#5a0d00);
-    box-shadow: 0 0 26px 9px rgba(255,70,35,.85);
-  }
-  #laserGun.firing #laserEmitter { box-shadow: 0 0 54px 20px rgba(255,90,45,1); }
   #loader {
     position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center;
@@ -122,7 +99,6 @@
 </div>
 <div id="chargeWrap"><div id="chargeBar"></div></div>
 <div id="crosshair"></div>
-<div id="laserGun"><div id="laserBody"></div><div id="laserEmitter"></div></div>
 <div id="toast"></div>
 
 <div id="loader">
@@ -143,7 +119,6 @@
     <h2>Settings</h2>
     <div class="setRow">Mouse sensitivity: <input type="range" id="setSens" min="5" max="60" value="24"></div>
     <div class="setRow"><label><input type="checkbox" id="setInvert"> Invert Y axis</label></div>
-    <div class="setRow"><label><input type="checkbox" id="setMusic" checked> Music</label></div>
     <div class="setRow">Graphics quality:
       <select id="setQuality">
         <option value="0.75">Low</option>
@@ -1200,6 +1175,27 @@
     rig.armL.sh.rotation.z = -0.12;
     rig.armR.sh.rotation.z = 0.12;
 
+    // laser blaster, gripped in the right hand — hidden until equipped with L.
+    // The barrel runs along -Y (the forearm's pointing axis) so it aims wherever
+    // the hand points when the arm is raised.
+    (function buildGun() {
+      const metal = new THREE.MeshPhongMaterial({ color: 0x2a2f3a, shininess: 60, specular: 0x8895a8 });
+      const trim  = new THREE.MeshPhongMaterial({ color: 0x444b58, shininess: 40 });
+      const hot   = new THREE.MeshBasicMaterial({ color: 0xff4a2a });
+      const g = new THREE.Group();
+      const body   = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.5, 0.28), metal); body.position.y = -0.12; g.add(body);
+      const sight  = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.16), trim); sight.position.set(0, 0.06, -0.02); g.add(sight);
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.6, 14), metal); barrel.position.y = -0.6; g.add(barrel);
+      const ring   = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.03, 8, 16), trim); ring.position.y = -0.78; ring.rotation.x = Math.PI/2; g.add(ring);
+      const emit   = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), hot); emit.position.y = -0.92; g.add(emit);
+      const grip   = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.34, 0.18), metal); grip.position.set(0, 0.0, 0.22); grip.rotation.x = 0.35; g.add(grip);
+      const muzzle = new THREE.Object3D(); muzzle.position.y = -1.02; g.add(muzzle);
+      g.position.set(0, -0.66, 0);   // sit in the glove at the end of the forearm
+      g.visible = false;
+      rig.armR.el.add(g);
+      rig.gun = g; rig.gunTip = muzzle;
+    })();
+
     // two-segment legs (hip + knee) with boots
     function leg(side) {
       const hip = new THREE.Group();
@@ -1284,11 +1280,9 @@
     laserEquipped = !laserEquipped; laserFiring = false;
     const ch = document.getElementById('crosshair');
     if (ch) ch.style.borderColor = laserEquipped ? '#ff3020' : 'rgba(255,255,255,.7)';
-    const gun = document.getElementById('laserGun');
-    if (gun) gun.style.display = laserEquipped ? 'block' : 'none';
+    if (rig.gun) rig.gun.visible = laserEquipped;
     if (laserBeam) laserBeam.visible = false;
     if (laserGlow) laserGlow.visible = false;
-    toast(laserEquipped ? 'Orbital laser ready — hold left-click to fire' : 'Laser holstered');
   }
   const booms = [];
   let lastAtmoMat = null;
@@ -1403,6 +1397,7 @@
   // ---------- Music (solo piano, Interstellar-inspired) ----------
   let audioCtx = null, musicOn = true, musicNodes = null;
   function startMusic() {
+    return; // sound disabled — space is silent
     if (!musicOn || musicNodes) return;
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1486,6 +1481,7 @@
     }
   }
   function sfxWhoosh(dur) {
+    return; // sound disabled
     try {
       ensureAudio();
       const t = audioCtx.currentTime;
@@ -1504,6 +1500,7 @@
     } catch (e) {}
   }
   function sfxBoom() {
+    return; // sound disabled
     try {
       ensureAudio();
       const t = audioCtx.currentTime;
@@ -1579,7 +1576,8 @@
     useBloom = q >= 2;
     perfStage = 0;
   });
-  document.getElementById('setMusic').addEventListener('change', e => {
+  const _setMusic = document.getElementById('setMusic');
+  if (_setMusic) _setMusic.addEventListener('change', e => {
     musicOn = e.target.checked;
     if (musicOn && document.pointerLockElement) startMusic();
     else if (!musicOn) stopMusic();
@@ -1663,7 +1661,6 @@
     boostGrace = 8;
     vel.copy(dir).multiplyScalar(1109.4);
     fuel = Math.max(0, fuel - 10);
-    toast('APOLLO 10 BOOST — 39,937.7 km/h');
   }
 
   function segHitsSphere(a, b, c, R) {
@@ -1744,13 +1741,11 @@
     fuel = FUEL_MAX;
     target = null;
     document.getElementById('targetBanner').style.display = 'none';
-    toast(invertedMode ? 'Beyond the horizon - the Inverse Universe' : 'Returned to the true universe');
   }
 
   function landOn(p) {
     if (p.blackhole) { enterBlackhole(); return; }
     if (p.deadly) {
-      toast('TOO HOT! Respawning...');
       spawnOn(homePlanet());
       return;
     }
@@ -1765,7 +1760,6 @@
     if (!visited.has(p.name)) {
       visited.add(p.name);
       saveVisited();
-      toast('Welcome to ' + p.name + '!');
     }
   }
 
@@ -1799,7 +1793,6 @@
         if (ds < dBest) { dBest = ds; rr = p.r; }
       }
       overviewDist = Math.max((dBest + rr) * 3, rr * 12);
-      toast('Overview - mouse orbits, scroll zooms, C returns');
     }
     document.getElementById('crosshair').style.display = overview ? 'none' : 'block';
   }
@@ -1829,7 +1822,7 @@
         if (ang < bestAng) { bestAng = ang; tgt = p; }
       }
     }
-    if (!tgt) { toast('Aim at a planet first'); return; }
+    if (!tgt) { return; }
     lastFire = elapsed;
     let impactN;
     const t = hitT > 0 ? hitT : raySphere(pos, camDir, tgt.center, tgt.r);
@@ -1862,7 +1855,6 @@
       nL: impactN.clone().applyQuaternion(tgt.mesh.quaternion.clone().invert()),
       tLeft: flightT });
     sfxWhoosh(flightT);
-    toast('Asteroid inbound: ' + tgt.name);
   }
 
   function deformCrater(p, nWorld, size, laser) {
@@ -1880,10 +1872,10 @@
       // about a fifth as deep as they are wide — a rock cannot punch through a
       // planet, so this never pierces, cores, or destroys the world.
       if (cr) {
-        cr.R = Math.min(p.r * 0.18, cr.R * 1.06);
+        cr.R = Math.min(p.r * 0.5, cr.R * 1.06);
         cr.depth = Math.min(cr.R * 0.2, cr.depth * 1.05);
       } else {
-        const baseR = Math.min(p.r * 0.14, Math.max(p.r * 0.03, (size || 10) * 30));
+        const baseR = Math.min(p.r * 0.42, Math.max(p.r * 0.09, (size || 10) * 90));
         cr = { n: nLocal.clone(), R: baseR, depth: baseR * 0.18 };
         p.craters.push(cr);
       }
@@ -1891,28 +1883,36 @@
       return cr;
     }
 
-    // The laser — the only science fiction here. It bores straight in, a little
-    // deeper every moment the trigger is held, until it punches clean through;
-    // keep burning the same shaft and the whole world finally breaks apart.
-    if (cr && cr.pierced) {
-      cr.kill = (cr.kill || 0) + 1;
-      if (cr.kill >= 40) { destroyPlanet(p); return null; }
-      return cr;
+    // The laser — the only science fiction here. Holding the trigger drills ONE
+    // hole that gets deeper and wider until it punches clean through; the exit
+    // wound opens on the exact far side, so aim at the north pole and you can
+    // fly in the top, straight through the core, and out the bottom.
+    // Find the nearest existing bore so a steady beam keeps deepening one shaft.
+    cr = null;
+    let nearest = Infinity;
+    for (const c of p.craters) {
+      if (!(c.laser || c.pierced)) continue;
+      const d = c.n.distanceTo(nLocal) * p.r;
+      const tol = Math.max(c.R * 1.8, p.r * 0.12);
+      if (d < tol && d < nearest) { nearest = d; cr = c; }
     }
-    if (cr && cr.laser) {
-      cr.depth = Math.min(p.r * 1.05, cr.depth + p.r * 0.05);
-      cr.R = Math.min(p.r * 0.16, cr.R * 1.015);
-      if (cr.depth >= p.r && !cr.pierced) {
-        cr.pierced = true;
-        p.craters.push({ n: cr.n.clone().negate(), R: Math.max(cr.R * 0.85, p.r * 0.05), depth: p.r * 0.5, pierced: true, laser: true });
-        toast('The beam burns clean through ' + p.name + '!');
-      }
+    if (!cr) {
+      cr = { n: nLocal.clone(), R: p.r * 0.05, depth: p.r * 0.08, laser: true };
+      p.craters.push(cr);
+    }
+    if (cr.pierced) {
+      cr.R = Math.min(p.r * 0.24, cr.R + p.r * 0.004);     // keep widening the open tunnel
       reapplyCraters(p);
       return cr;
     }
-    const baseR = Math.min(p.r * 0.07, Math.max(p.r * 0.03, (size || 10) * 10));
-    if (cr) { cr.laser = true; cr.R = Math.min(cr.R, baseR); cr.depth = Math.max(cr.depth, p.r * 0.05); }
-    else { cr = { n: nLocal.clone(), R: baseR, depth: p.r * 0.05, laser: true }; p.craters.push(cr); }
+    cr.depth = Math.min(p.r * 1.05, cr.depth + p.r * 0.12);  // drill deeper fast
+    cr.R = Math.min(p.r * 0.16, cr.R + p.r * 0.007);          // and a touch wider
+    if (cr.depth >= p.r) {
+      cr.pierced = true;
+      cr.depth = p.r * 1.05;
+      // matching exit hole straight through the core to the antipode
+      p.craters.push({ n: cr.n.clone().negate(), R: Math.max(cr.R, p.r * 0.12), depth: p.r * 1.05, pierced: true, laser: true });
+    }
     reapplyCraters(p);
     return cr;
   }
@@ -2077,7 +2077,6 @@
     if (target === p) { target = null; document.getElementById('targetBanner').style.display = 'none'; }
     if (airCarry === p) airCarry = null;
     if (groundPlanet === p) { grounded = false; groundPlanet = homePlanet(); vel.set(0, 0, 0); jumpGrace = 1; }
-    toast(p.name + ' HAS BEEN DESTROYED');
     sfxBoom();
   }
 
@@ -2090,7 +2089,7 @@
       scorchTexture(p, nL, crRec.R);
     }
     sfxBoom();
-    const base = Math.max(p.r * 0.25, size * 8);
+    const base = Math.max(p.r * 0.6, size * 24);
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({
       map: softSprite('rgba(255,240,200,1)', 'rgba(255,120,30,0.55)'),
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
@@ -2101,7 +2100,6 @@
     boomW.copy(impactW); boomAge = 0; boomDur = 1.2;
     boomLight.distance = p.r * 2;
     if (p === groundPlanet && grounded) squash = 0.7;
-    toast('Impact on ' + p.name + '!');
   }
 
   // ---------- HUD ----------
@@ -2385,7 +2383,7 @@
           break;
         }
       }
-      if (pos.length() > 1e22) { toast('Lost in space... respawning'); spawnOn(homePlanet()); }
+      if (pos.length() > 1e22) { spawnOn(homePlanet()); }
     }
 
 
@@ -2548,6 +2546,13 @@
       rig.torso.rotation.x = Math.min(rig.torso.rotation.x, -squash * 0.3);
     }
 
+    // hold the blaster out in front while it's equipped
+    if (laserEquipped) {
+      rig.armR.sh.rotation.x = damp(rig.armR.sh.rotation.x, 1.5, 12, dt);
+      rig.armR.sh.rotation.z = damp(rig.armR.sh.rotation.z, 0.06, 12, dt);
+      rig.armR.el.rotation.x = damp(rig.armR.el.rotation.x, 0.05, 12, dt);
+    }
+
     // ---- Player orientation ----
     tmpV.copy(lastFacing).addScaledVector(smoothUp, -lastFacing.dot(smoothUp));
     if (tmpV.lengthSq() > 1e-4) lastFacing.copy(tmpV).normalize();
@@ -2624,8 +2629,6 @@
     // ---- Orbital laser ----
     if (laserEquipped) ensureLaser();
     if (laserBeam) {
-      const gun = document.getElementById('laserGun');
-      if (gun) gun.classList.toggle('firing', laserFiring && laserEquipped);
       if (laserFiring && laserEquipped && document.pointerLockElement && !overview) {
         let tgt = null, bestT = Infinity;
         for (const p of planets) {
@@ -2633,7 +2636,9 @@
           const t = raySphere(pos, camDir, p.center, p.r);
           if (t > 0 && t < bestT) { bestT = t; tgt = p; }
         }
-        const muzzleW = new THREE.Vector3().copy(pos).addScaledVector(smoothUp, 0.5).addScaledVector(camDir, 1.0);
+        // beam starts at the gun muzzle held in the player's hand
+        const aR = (rig.gunTip ? rig.gunTip.getWorldPosition(new THREE.Vector3())
+                               : new THREE.Vector3().copy(smoothUp).multiplyScalar(0.5));
         let endW;
         if (tgt) {
           endW = new THREE.Vector3().copy(pos).addScaledVector(camDir, bestT);
@@ -2652,7 +2657,6 @@
           endW = new THREE.Vector3().copy(pos).addScaledVector(camDir, 5e6);
           if (laserGlow) laserGlow.visible = false;
         }
-        const aR = muzzleW.sub(pos);
         const seg = new THREE.Vector3().copy(endW).sub(pos).sub(aR);
         const len = Math.max(seg.length(), 0.001);
         laserBeam.visible = true;
